@@ -1,5 +1,5 @@
 "use client"
-import React, { useState } from 'react'
+import React from 'react'
 import Image from 'next/image';
 import { serviceCategories } from '@/lib/constants';
 
@@ -13,16 +13,16 @@ type Platform = keyof typeof serviceCategories;
 
 interface ServiceSelectorProps {
   activePlatform: Platform;
+  activeService: string;
+  onServiceChange: (service: string) => void;
 }
 
-const ServiceSelector: React.FC<ServiceSelectorProps> = ({ activePlatform = 'instagram' }) => {
-  const [activeService, setActiveService] = useState<string>('followers');
-
+const ServiceSelector: React.FC<ServiceSelectorProps> = ({ activePlatform = 'instagram', activeService, onServiceChange }) => {
   // Ensure type safety
   const services: ServiceCategory[] = serviceCategories[activePlatform] || [];
 
   const handleServiceClick = (serviceName: string) => {
-    setActiveService(serviceName);
+    onServiceChange(serviceName);
   };
 
   return (

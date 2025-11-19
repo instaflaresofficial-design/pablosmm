@@ -1,0 +1,50 @@
+.infoRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+}
+
+.quantityDisplay {
+    background-color: #0e0e0e;
+    padding: 12px 20px;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.quantity {
+    font-size: 36px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.label {
+    font-size: 14px;
+    color: #999999;
+    text-transform: lowercase;
+}
+
+.minMax,
+.price {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    text-align: right;
+}
+
+.minmaxLabel,
+.priceLabel {
+    font-size: 13px;
+    color: #999999;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+}
+
+.minmaxValue,
+.priceValue {
+    font-size: 22px;
+    font-weight: 700;
+    color: #ffffff;
+}
