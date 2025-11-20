@@ -832,6 +832,97 @@ h6 {
   font-size: 0.88rem;
   color: #ffffff;
 }
+.root .summary-container .service-info-container .cards-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+.root .summary-container .service-info-container .cards-container .card-info {
+  background: #0c0c0e;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  min-height: 120px;
+  position: relative;
+}
+.root .summary-container .service-info-container .cards-container .card-info .text-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1;
+}
+.root .summary-container .service-info-container .cards-container .card-info .text-container .label {
+  font-family: GM;
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.48);
+}
+.root .summary-container .service-info-container .cards-container .card-info .text-container .value {
+  font-family: GSB;
+  font-size: 1.04rem;
+  color: #ffffff;
+  margin: 0;
+}
+.root .summary-container .service-info-container .cards-container .card-info .text-container.start-time {
+  background: #0d0d0f;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  max-height: 48px;
+  padding: 8px 0px 8px 88px;
+  justify-content: center;
+  background-image: linear-gradient(90deg, #d56616 0%, #ebb514 17.97%, #b1d279 41.19%, #75dfc9 59.08%, #4daef6 78.03%, #3956db 93.24%), linear-gradient(90deg, #d56616 0%, #ebb514 17.97%, #b1d279 41.19%, #75dfc9 59.08%, #4daef6 78.03%, #3956db 93.24%);
+  background-repeat: no-repeat, no-repeat;
+  background-position: left bottom, left top;
+  background-size: 100% 1px, 100% 1px;
+}
+.root .summary-container .service-info-container .cards-container .card-info .text-container.start-time::before {
+  content: "";
+  width: 4rem;
+  height: 4rem;
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+  background-image: url("/service-card/start-time.png");
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+.root .summary-container .service-info-container .cards-container .card-info.speed {
+  background-image: url("/service-card/speed.png");
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+}
+.root .summary-container .service-info-container .cards-container .card-info.targeting {
+  background-image: url("/service-card/targeting.png");
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+}
+.root .summary-container .service-info-container .cards-container .card-info.refill {
+  background-image: url("/service-card/refill.png");
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+}
+.root .summary-container .service-info-container .cards-container .card-info.quality {
+  background-image: url("/service-card/quality.png");
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+}
+.root .summary-container .service-info-container .cards-container .card-info.stability {
+  background-image: url("/service-card/stability.png");
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+}
 .submit-btn {
   font-family: GB;
   font-size: 1.08rem;
