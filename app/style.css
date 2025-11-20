@@ -608,6 +608,7 @@ h6 {
   border: 1px solid #292929;
   padding: 2px 6px;
   max-width: 200px;
+  text-align: center;
 }
 .root .summary-container .slider-container .sliderInfo .sliderQuantity .value {
   font-family: GB;
@@ -628,7 +629,7 @@ h6 {
   display: flex;
   flex-direction: row;
   align-items: flex-end;
-  gap: 12px;
+  gap: 16px;
 }
 .root .summary-container .slider-container .sliderInfo .info-container .slider-info {
   display: flex;
@@ -639,27 +640,26 @@ h6 {
 }
 .root .summary-container .slider-container .sliderInfo .info-container .slider-info .label {
   font-family: GM;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   color: rgba(255, 255, 255, 0.32);
 }
 .root .summary-container .slider-container .sliderInfo .info-container .slider-info .value {
   font-family: GSB;
-  font-size: 0.74rem;
+  font-size: 0.82rem;
   color: #ffffff;
 }
 .root .summary-container .slider-container::after {
   content: "";
-  opacity: 0.52;
+  opacity: 1;
   z-index: -1;
-  background-image: url(../public/gradients/bg.svg);
-  background-repeat: no-repeat;
-  background-size: contain;
-  min-width: 100%;
+  background-image: url(../public/gray-blur.png);
+  background-repeat: round;
+  background-size: cover;
+  width: 100%;
   height: 380px;
   position: absolute;
-  bottom: -56px;
+  bottom: -200px;
   left: 0;
-  rotate: 180deg;
 }
 .root .summary-container .search-container {
   display: flex;
@@ -673,7 +673,7 @@ h6 {
   width: 100%;
   max-width: 900px;
   /* tune */
-  margin: 40px 0;
+  margin: 3.3rem auto 0;
   border-radius: 200px;
   display: flex;
   align-items: center;
@@ -731,7 +731,7 @@ h6 {
   position: absolute;
   left: 30px;
   /* adjust to perfectly center with input padding-left */
-  top: 50%;
+  top: 70%;
   transform: translateY(-50%);
   width: 20px;
   height: 20px;
@@ -747,7 +747,7 @@ h6 {
 .root .summary-container .search-container::after {
   content: "";
   position: absolute;
-  top: 0;
+  top: -2px;
   left: 0;
   min-width: 100%;
   height: 124px;
@@ -797,6 +797,40 @@ h6 {
   width: 18px;
   height: 18px;
   display: block;
+}
+.root .summary-container .service-info-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px 16px;
+}
+.root .summary-container .service-info-container .service-info-title {
+  font-family: GM;
+  font-size: 1.08rem;
+  color: #ffffff;
+  margin: 0;
+  line-height: 22px;
+}
+.root .summary-container .service-info-container .details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+.root .summary-container .service-info-container .details-grid .detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1;
+}
+.root .summary-container .service-info-container .details-grid .detail-item .detail-label {
+  font-family: GM;
+  font-size: 0.76rem;
+  color: rgba(255, 255, 255, 0.32);
+}
+.root .summary-container .service-info-container .details-grid .detail-item .detail-value {
+  font-family: GSB;
+  font-size: 0.88rem;
+  color: #ffffff;
 }
 .submit-btn {
   font-family: GB;
