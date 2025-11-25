@@ -18,6 +18,7 @@
 }
 :root {
   --ham-dimensions: 32px;
+  --bottom-nav-h: 96px;
 }
 a {
   text-decoration: none;
@@ -53,6 +54,9 @@ body {
   -webkit-font-smoothing: subpixel-antialiased;
   font-family: inherit;
   background: #020203;
+  overflow-y: hidden;
+  display: block;
+  min-height: 100dvh;
 }
 body::-webkit-scrollbar-track {
   background-color: rgba(31, 29, 29, 0.59);
@@ -192,9 +196,17 @@ h6 {
   max-width: 480px;
   margin: 0 auto;
   padding: 0;
-  height: auto;
-  min-height: 100vh;
+  height: calc(100dvh - (var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px)));
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  border-bottom-left-radius: 32px;
+  border-bottom-right-radius: 32px;
+  scrollbar-width: none;
   position: relative;
+  background: #020203;
+  -webkit-clip-path: inset(0 round 0 0 32px 32px);
+  clip-path: inset(0 round 0 0 32px 32px);
 }
 .root .navigation {
   display: flex;
@@ -488,7 +500,7 @@ h6 {
   flex-direction: column;
   gap: 24px;
   padding: 0 16px;
-  height: 120px;
+  height: 160px;
   border-bottom: none;
   background-image: linear-gradient(90deg, #d56616 0%, #ebb514 17.97%, #b1d279 41.19%, #75dfc9 59.08%, #4daef6 78.03%, #3956db 93.24%);
   background-repeat: no-repeat;
@@ -803,6 +815,7 @@ h6 {
   flex-direction: column;
   gap: 16px;
   padding: 8px 16px;
+  background: linear-gradient(180deg, #040405 0%, #1f1f20 100%);
 }
 .root .summary-container .service-info-container .service-info-title {
   font-family: GM;
@@ -814,7 +827,8 @@ h6 {
 .root .summary-container .service-info-container .details-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 12px;
+  row-gap: 12px;
+  column-gap: 24px;
 }
 .root .summary-container .service-info-container .details-grid .detail-item {
   display: flex;
@@ -923,6 +937,81 @@ h6 {
   background-size: cover;
   background-position: center;
 }
+.root .summary-container .service-info-container .description-container {
+  border-radius: 8px;
+  flex-direction: column;
+  gap: 0px;
+  margin-top: -8px;
+  padding: 8px;
+  display: flex;
+}
+.root .summary-container .service-info-container .description-container .description-title {
+  font-family: GM;
+  font-size: 1.08rem;
+  color: #ffffff;
+  margin: 0;
+}
+.root .summary-container .service-info-container .description-container .description-text {
+  font-family: GM;
+  font-size: 0.96rem;
+  color: rgba(255, 255, 255, 0.82);
+  line-height: 1.5;
+}
+.bottom-navigation {
+  height: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: row;
+  min-width: 100%;
+  padding: 16px;
+  background: #000;
+  justify-content: space-between;
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 0;
+  width: 100%;
+  max-width: 600px;
+  z-index: 1000;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+}
+.bottom-navigation .nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.bottom-navigation .nav-item img {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+.bottom-navigation .nav-item span {
+  font-family: GSB;
+  font-size: 0.56rem;
+  color: #858585;
+  line-height: 1;
+  letter-spacing: 1.24px;
+  text-transform: uppercase;
+}
+.bottom-navigation .nav-item.active span {
+  color: #ffffff;
+}
+.bottom-navigation .nav-item.boost {
+  background: #1d1d1d;
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  box-shadow: 0px 0px 19.5px 0px #878787, 0px -2px 3.2256px 0px #ffffff, 0px -2px 1.6128px 0px #ffffff, 0px -1px 0.46079999px 0px rgba(255, 255, 255, 0.5), 0px -1px 0.2304px 0px rgba(255, 255, 255, 0.4);
+}
+.bottom-navigation .nav-item.boost img {
+  width: 36px;
+  height: 36px;
+}
+.bottom-navigation .nav-item.boost.active {
+  box-shadow: 0px 0px 19.5px #f69282, 0px -2px 3.23px #ffcc9f, 0px -2px 1.61px #f9ad96, 0px -1px 0.46px rgba(208, 144, 159, 0.5), 0px -1px 0.23px #191919;
+}
 .submit-btn {
   font-family: GB;
   font-size: 1.08rem;
@@ -941,7 +1030,7 @@ h6 {
 .root::after {
   content: "";
   position: absolute;
-  bottom: 0px;
+  bottom: -200px;
   left: 0;
   width: 100%;
   height: 500px;
