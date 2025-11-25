@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./style.css";
 import Header from "@/components/layout/Header";
 import BottomSheet from "@/components/modal/BottomSheet";
+import HeaderSwitch from "@/components/layout/HeaderSwitch";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -17,7 +18,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <div className="root">
-          <Header />
+          <HeaderSwitch />
           {children}      
         </div>
         <BottomSheet />
