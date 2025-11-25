@@ -1,8 +1,13 @@
+"use client"
+import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import React from 'react'
 
+
 const page = () => {
+  const router = useRouter();
+
   return (
     <div className='wallet-page'>
         <div className="top-nav">
@@ -66,7 +71,7 @@ const page = () => {
               height={40}
             />
           </div>
-          <button>Add Money</button>
+          <button onClick={() => router.push('wallet/add')}>Add Money</button>
         </div>
     </div>
   )
