@@ -59,8 +59,6 @@ const page = () => {
           )
         )}
       </div>
-
-      <div className="powered">POWERED BY DIGX MEDIA</div>
     </div>
   );
 };
