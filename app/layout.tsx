@@ -16,6 +16,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <meta name="cryptomus" content="e01f06fd" />
+      </head>
       <body>
         <div className="root">
           <HeaderSwitch />
