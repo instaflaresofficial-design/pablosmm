@@ -5,6 +5,12 @@
   font-style: normal;
 }
 @font-face {
+  font-family: GBL;
+  src: url(../fonts/GBL.ttf);
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
   font-family: GSB;
   src: url(../fonts/GSB.ttf);
   font-weight: normal;
@@ -1256,13 +1262,572 @@ h6 {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 16px;
   position: relative;
   z-index: 10;
-  background: #121212;
+  background: #101010;
   gap: 16px;
   height: 100%;
   overflow-y: auto;
+  border-radius: 0 0 32px 32px;
+}
+.root .profile-page .user-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 16px;
+}
+.root .profile-page .user-container .profile-img {
+  width: 56px;
+  height: 56px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  position: relative;
+  overflow: hidden;
+  flex-direction: column;
+}
+.root .profile-page .user-container .text-container {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+.root .profile-page .user-container .text-container .user-info-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.root .profile-page .user-container .text-container .user-info-container .username {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  align-items: center;
+}
+.root .profile-page .user-container .text-container .user-info-container .username h3 {
+  font-family: GB;
+  font-size: 1.32rem;
+  color: #ffffff;
+  margin: 0;
+  line-height: 1;
+}
+.root .profile-page .user-container .text-container .user-info-container .username a img {
+  width: 20px;
+  height: 20px;
+  display: block;
+  margin-bottom: 2px;
+}
+.root .profile-page .user-container .text-container .user-info-container .user-email {
+  font-family: GM;
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.44);
+  margin: 0;
+  line-height: 1;
+}
+.root .profile-page .user-container .text-container .signout {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-direction: row;
+  font-family: GSB;
+  font-size: 0.78rem;
+  margin: 0;
+  line-height: 1;
+  color: #464646;
+  cursor: pointer;
+  height: fit-content;
+}
+.root .profile-page .user-container .text-container .signout img {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+.root .profile-page .profile-container {
+  border-radius: 24px 24px 32px 32px;
+  background: linear-gradient(0deg, #1b1b1b 0%, #272626 100%);
+  padding: 16px 16px 120px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  height: 100%;
+}
+.root .profile-page .profile-container .account-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.root .profile-page .profile-container .account-overview h2 {
+  font-family: GM;
+  font-size: 0.76rem;
+  color: rgba(255, 255, 255, 0.32);
+  margin: 0;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.root .profile-page .profile-container .account-overview .profile-wallet-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: #383838;
+  border-radius: 12px;
+  padding: 12px;
+  min-height: 144px;
+  position: relative;
+  overflow: hidden;
+}
+.root .profile-page .profile-container .account-overview .profile-wallet-container .top-container {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
+  z-index: 100;
+}
+.root .profile-page .profile-container .account-overview .profile-wallet-container .top-container .balance-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.root .profile-page .profile-container .account-overview .profile-wallet-container .top-container .balance-container .balance-label {
+  font-family: GSB;
+  font-size: 0.82rem;
+  color: #808080;
+  margin: 0;
+  line-height: 1;
+}
+.root .profile-page .profile-container .account-overview .profile-wallet-container .top-container .balance-container .balance-amount {
+  font-family: GB;
+  font-size: 1.48rem;
+  color: #ffffff;
+  margin: 0;
+  line-height: 1;
+}
+.root .profile-page .profile-container .account-overview .profile-wallet-container .top-container .currency-select {
+  font-family: GSB;
+  font-size: 0.78rem;
+  color: #f9af91;
+  background: transparent;
+  border: none;
+  width: fit-content;
+}
+.root .profile-page .profile-container .account-overview .profile-wallet-container .bottom-container {
+  display: flex;
+  flex-direction: row;
+  gap: 32px;
+}
+.root .profile-page .profile-container .account-overview .profile-wallet-container .bottom-container .stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.root .profile-page .profile-container .account-overview .profile-wallet-container .bottom-container .stats p {
+  font-family: GSB;
+  font-size: 0.72rem;
+  color: #ffffff;
+  margin: 0;
+  line-height: 1;
+}
+.root .profile-page .profile-container .account-overview .profile-wallet-container .bottom-container .stats span {
+  font-family: GSB;
+  font-size: 0.76rem;
+  color: #28c006;
+  margin: 0;
+  line-height: 1;
+}
+.root .profile-page .profile-container .account-overview .profile-wallet-container::after {
+  content: "₹";
+  color: #545454;
+  font-family: GBL;
+  font-size: 10rem;
+  position: absolute;
+  bottom: -24px;
+  right: -12px;
+  line-height: 0.6;
+}
+.root .profile-page .profile-container .account-overview .stats-container {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  margin-top: -6px;
+  justify-content: space-between;
+}
+.root .profile-page .profile-container .account-overview .stats-container .stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  background: #2e2e2e;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.root .profile-page .profile-container .account-overview .stats-container .stat .stat-label {
+  font-family: GSB;
+  font-size: 0.72rem;
+  color: #b3b3b3;
+  margin: 0;
+  line-height: 1;
+}
+.root .profile-page .profile-container .account-overview .stats-container .stat .stat-value {
+  font-family: GB;
+  font-size: 1.52rem;
+  color: #ffffff;
+  margin: 0;
+  line-height: 1;
+}
+.root .profile-page .profile-container .account-overview .stats-container .stat:first-child {
+  flex: none;
+}
+.root .profile-page .profile-container .account-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.root .profile-page .profile-container .account-settings h2 {
+  font-family: GM;
+  font-size: 0.76rem;
+  color: rgba(255, 255, 255, 0.32);
+  margin: 0;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.root .profile-page .profile-container .account-settings .setting-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+.root .profile-page .profile-container .account-settings .setting-list li {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  border-bottom: 1px solid #3a3a3a;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+  padding-bottom: 8px;
+}
+.root .profile-page .profile-container .account-settings .setting-list li a {
+  font-family: GSB;
+  font-size: 0.96rem;
+  color: #ffffff;
+  text-decoration: none;
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+}
+.root .profile-page .profile-container .account-settings .setting-list li a img {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+.root .profile-page .profile-container .account-settings .setting-list li:last-child {
+  border-bottom: none;
+}
+.root .profile-page .profile-container .account-settings .setting-list li::after {
+  content: "";
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid #7a7a7a;
+  border-bottom: 2px solid #7a7a7a;
+  transform: rotate(-45deg);
+}
+.root .orders-page {
+  z-index: 10;
+  flex-direction: column;
+  flex: 1;
+  gap: 16px;
+  height: auto;
+  padding: 16px;
+  display: flex;
+  position: relative;
+  padding-top: 56px;
+  text-align: center;
+  align-self: center;
+  width: 100%;
+  padding-bottom: 120px;
+}
+.root .orders-page .tabs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: center;
+}
+.root .orders-page .tabs-container h2 {
+  font-family: GB;
+  font-size: 1.24rem;
+  color: #ffffff;
+  margin: 0;
+  line-height: 1;
+}
+.root .orders-page .tabs-container .tabs {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+}
+.root .orders-page .tabs-container .tabs .tab {
+  font-family: GSB;
+  font-size: 0.94rem;
+  color: #b3b3b3;
+  padding: 6px 16px;
+  border-radius: 160px;
+  border-radius: 42px;
+  background: #1e1e1e;
+  cursor: pointer;
+}
+.root .orders-page .tabs-container .tabs .tab.active {
+  box-shadow: inset 0px 0px 8px rgba(0, 0, 0, 0.5);
+  position: relative;
+  overflow: hidden;
+}
+.root .orders-page .tabs-container .tabs .tab.active::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 42px;
+  padding: 1.25px;
+  /* Adjust this value for stroke thickness */
+  background: linear-gradient(180deg, #7a7a7a 0%, #101010 90%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.root .orders-page .orders-card {
+  margin-top: 12px;
+}
+.root .orders-page .orders-card .orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.root .orders-page .orders-card .orders-list .order-card {
+  background: rgba(27, 27, 27, 0.64);
+  border-radius: 12px;
+  padding: 8px;
+  padding-bottom: 12px;
+  position: relative;
+  overflow: hidden;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-card-top .order-number {
+  font-family: GSB;
+  font-size: 0.76rem;
+  color: #808080;
+  margin-top: -8px;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-card-top .status-badge {
+  font-family: GM;
+  font-size: 0.72rem;
+  padding: 6px 10px;
+  border-radius: 9px;
+  color: #878787;
+  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-card-top .status-badge .glow {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-card-top .status-badge .glow.completed {
+  background: #28c006;
+  box-shadow: 0px 0px 22.68px #28c006, 0px 0px 12.96px #28c006, 0px 0px 7.56px #28c006, 0px 0px 3.78px #28c006, 0px 0px 1.08px #28c006, 0px 0px 0.54px #28c006;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-card-top .status-badge .glow.active {
+  background: #c07006;
+  box-shadow: 0px 0px 22.68px #c07006, 0px 0px 12.96px #c07006, 0px 0px 7.56px #c07006, 0px 0px 3.78px #c07006, 0px 0px 1.08px #c07006, 0px 0px 0.54px #c07006;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-card-top .status-badge .glow.failed {
+  background: #c00606;
+  box-shadow: 0px 0px 22.68px #c00606, 0px 0px 12.96px #c00606, 0px 0px 7.56px #c00606, 0px 0px 3.78px #c00606, 0px 0px 1.08px #c00606, 0px 0px 0.54px #c00606;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-card-top .status-badge::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 9px;
+  padding: 0.72px;
+  /* Adjust this value for stroke thickness */
+  background: linear-gradient(180deg, #4d4d4d 0%, #101010 90%);
+  -webkit-mask: linear-gradient(#434343 0 0) content-box, linear-gradient(#434343 0 0);
+  mask: linear-gradient(#434343 0 0) content-box, linear-gradient(#434343 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-title {
+  color: #fff;
+  margin: -14px 0 10px;
+  font-family: GB;
+  font-size: 1rem;
+  text-align: left;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-grid {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 8px;
+  display: grid;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-grid .order-field {
+  background: #1b1b1b;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: self-start;
+  padding: 8px;
+  height: fit-content;
+  gap: 4px;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-grid .order-field .label {
+  font-family: GSB;
+  font-size: 0.68rem;
+  color: #b3b3b3;
+  line-height: 1;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-grid .order-field .value {
+  font-family: GB;
+  font-size: 1.08rem;
+  color: #ffffff;
+  line-height: 1;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-meta {
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  margin-top: 8px;
+  margin-left: 6px;
+  align-items: center;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-meta .meta-item {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  gap: 2px;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-meta .meta-item .meta-label {
+  font-family: GM;
+  font-size: 0.68rem;
+  color: #b3b3b3;
+  line-height: 1;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-meta .meta-item .meta-value {
+  font-family: GSB;
+  font-size: 0.86rem;
+  color: #ffffff;
+  line-height: 1;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-meta .meta-action {
+  margin-left: auto;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-meta .meta-action .view-btn {
+  color: #ffffff;
+  padding: 6px;
+  border-radius: 4px;
+  font-family: GSB;
+  cursor: pointer;
+  font-size: 0.82rem;
+  background: #2b2b2b;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  line-height: 1;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-progress {
+  /* adopt slider-container look: vertical rhythm + bigger track */
+  flex-direction: row;
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-progress .sliderWrapper {
+  position: relative;
+  width: 100%;
+  height: 16px;
+  border-radius: 12px;
+  background: #1a1a1a;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-progress .sliderWrapper .progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-progress .sliderWrapper .progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: auto;
+  /* width still controlled by inline style */
+  background: linear-gradient(90deg, #d56616 0%, #ebb514 18%, #b1d279 41%, #75dfc9 59%, #4daef6 78%, #3956db 100%);
+  box-shadow: rgba(255, 255, 255, 0.7) 0px 3px 1px 0px inset, rgba(0, 0, 0, 0.3) 0px 2px 2px 0px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  transition: width 0.3s ease;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-progress .progress-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.root .orders-page .orders-card .orders-list .order-card .order-progress .progress-label {
+  font-family: GSB;
+  font-size: 0.82rem;
+  color: #ffffff;
+  min-width: 36px;
+  text-align: right;
+}
+.root .orders-page .orders-card .orders-list .order-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 12px;
+  padding: 0.88px;
+  /* Adjust this value for stroke thickness */
+  background: linear-gradient(180deg, #7a7a7a 0%, #101010 90%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.root .orders-page::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 300px;
+  background-image: url(../public/gradients/bg.svg);
+  background-repeat: no-repeat;
+  background-size: contain;
+  z-index: -1;
+  opacity: 1;
+  transform: rotate(-180deg);
 }
 .bottom-navigation {
   height: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px));
@@ -1353,6 +1918,10 @@ h6 {
   content: none;
   display: none;
 }
+.root:has(.profile-page)::after {
+  content: none;
+  display: none;
+}
 .root:has(.wallet-add-page)::after {
   content: none;
   display: none;
@@ -1363,6 +1932,22 @@ h6 {
 body:has(.wallet-add-page) .bottom-navigation {
   display: none;
 }
+/* When on order(s) pages hide controls, remove nav padding and brighten background */
+.root:has(.orders-page) .navigation {
+  padding: 0;
+}
+.root:has(.orders-page) .navigation .hamburger,
+.root:has(.orders-page) .navigation .logo,
+.root:has(.orders-page) .navigation .profile {
+  display: none;
+}
+.root:has(.orders-page) .navigation::after {
+  opacity: 1;
+}
+body:has(.orders-page) .root::after {
+  opacity: 0;
+}
+/* Orders card styles (visual layout for each order entry) */
 @keyframes blink {
   50% {
     opacity: 0;
