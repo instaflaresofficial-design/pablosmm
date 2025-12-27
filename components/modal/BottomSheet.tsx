@@ -11,7 +11,7 @@ const BottomSheet: React.FC = () => {
   const match = (base: string) =>
     pathname === base || pathname.startsWith(`${base}/`);
 
-   const isHome = pathname === "/";
+   const isHome = pathname === "/home";
   const isOrders = match("/orders");
   const isBoost = match("/order"); // only /order or /order/*
   const isWallet = match("/wallet");
@@ -19,7 +19,7 @@ const BottomSheet: React.FC = () => {
 
   return (
     <div className="bottom-navigation">
-      <Link href="/" className={`nav-item ${isHome ? "active" : ""}`} aria-current={isHome ? "page" : undefined}>
+      <Link href="/home" className={`nav-item ${isHome ? "active" : ""}`} aria-current={isHome ? "page" : undefined}>
         <Image src="/bottom-nav/home.png" alt="Home" width={24} height={24} />
         <span className="label">Home</span>
       </Link>
