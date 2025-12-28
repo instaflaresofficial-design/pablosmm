@@ -7,6 +7,9 @@ interface QuantitySliderProps {
   max?: number;
   pricePerUnit?: number;
   onChange?: (quantity: number) => void;
+  // Optional category filter UI just below sliderInfo
+  activeCategory?: 'recommended' | 'cheapest' | 'premium';
+  onCategoryChange?: (c: 'recommended' | 'cheapest' | 'premium') => void;
 }
 
 const QuantitySlider: React.FC<QuantitySliderProps> = ({
@@ -14,6 +17,8 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
   max = 50000,
   pricePerUnit = 0.3,
   onChange,
+  activeCategory,
+  onCategoryChange,
 }) => {
   const [quantity, setQuantity] = useState<number>(10000);
   const [fillPercentage, setFillPercentage] = useState<number>(0);
@@ -129,6 +134,28 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
           </div>
         </div>
       </div>
+
+      {/* {onCategoryChange && (
+        <div className="sliderFilters" role="tablist" aria-label="Service categories">
+          {(
+            [
+              { key: 'recommended', label: 'Top Rated' },
+              { key: 'cheapest', label: 'Cheapest' },
+              { key: 'premium', label: 'Premium' },
+            ] as const
+          ).map((b) => (
+            <button
+              key={b.key}
+              role="tab"
+              aria-selected={activeCategory === b.key}
+              className={`tab ${activeCategory === b.key ? 'active' : ''}`}
+              onClick={() => onCategoryChange(b.key)}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
+      )} */}
     </div>
   );
 };

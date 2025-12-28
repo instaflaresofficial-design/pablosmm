@@ -1,4 +1,9 @@
-const SearchContainer = () => {
+interface SearchProps {
+  value?: string;
+  onChange?: (v: string) => void;
+}
+
+const SearchContainer: React.FC<SearchProps> = ({ value = '', onChange }) => {
   return (
     <div className="search-container">
       <div className="search-wrapper">
@@ -8,14 +13,15 @@ const SearchContainer = () => {
           className="search"
           placeholder="Search for services"
           aria-label="Search for services"
+          value={value}
+          onChange={(e) => onChange?.(e.target.value)}
         />
         <button className="control" aria-label="Filters">
-          {/* Use an inline SVG or an image in public/ (next.js: /public/filters.svg) */}
           <img src="/filter.png" alt="filters" className="control-icon" />
         </button>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default SearchContainer
+export default SearchContainer;

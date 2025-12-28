@@ -334,6 +334,7 @@ h6 {
   z-index: 10;
   color: #fff;
   gap: 32px;
+  /* Keep the last section (link input) anchored to the bottom of the page */
 }
 .root .order-page .platform-container {
   display: flex;
@@ -512,10 +513,14 @@ h6 {
   border-color: #555555;
   box-shadow: 0 0 8px rgba(85, 85, 85, 0.5);
 }
+.root .order-page .platform-container:last-of-type {
+  margin-top: auto;
+}
 .root .summary-container {
   z-index: 10;
   display: flex;
   flex-direction: column;
+  /* Order summary header and pager styling */
 }
 .root .summary-container .slider-container {
   width: 100%;
@@ -523,7 +528,7 @@ h6 {
   flex-direction: column;
   gap: 24px;
   padding: 0 16px;
-  height: 160px;
+  height: 120px;
   border-bottom: none;
   background-image: linear-gradient(90deg, #d56616 0%, #ebb514 17.97%, #b1d279 41.19%, #75dfc9 59.08%, #4daef6 78.03%, #3956db 93.24%);
   background-repeat: no-repeat;
@@ -548,7 +553,7 @@ h6 {
 }
 .root .summary-container .slider-container .sliderWrapper .sliderFill {
   position: absolute;
-  height: 100%;
+  height: 16px;
   border-radius: 12px;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
@@ -682,6 +687,41 @@ h6 {
   font-family: GSB;
   font-size: 0.82rem;
   color: #ffffff;
+}
+.root .summary-container .slider-container .sliderFilters {
+  display: flex;
+  gap: 8px;
+  margin-top: -12px;
+}
+.root .summary-container .slider-container .sliderFilters button.tab {
+  font-family: GSB;
+  font-size: 0.88rem;
+  color: #b3b3b3;
+  padding: 6px 14px;
+  border-radius: 42px;
+  background: #1e1e1e;
+  border: none;
+  cursor: pointer;
+}
+.root .summary-container .slider-container .sliderFilters button.tab.active {
+  box-shadow: inset 0px 0px 8px rgba(0, 0, 0, 0.5);
+  position: relative;
+  overflow: hidden;
+}
+.root .summary-container .slider-container .sliderFilters button.tab.active::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 42px;
+  padding: 1.25px;
+  background: linear-gradient(180deg, #7a7a7a 0%, #101010 90%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
 }
 .root .summary-container .slider-container::after {
   content: "";
@@ -833,12 +873,113 @@ h6 {
   height: 18px;
   display: block;
 }
+.root .summary-container .order-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.root .summary-container .order-summary .pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #bdbdbd;
+}
+.root .summary-container .order-summary .pager .pager-count {
+  font-family: GSB;
+  font-size: 0.76rem;
+}
+.root .summary-container .order-summary .pager .pager-controls {
+  display: flex;
+  gap: 8px;
+}
+.root .summary-container .order-summary .pager .pager-controls .control {
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  z-index: 5;
+  background: rgba(33, 33, 33, 0.64);
+  border: none;
+  border-radius: 50%;
+  justify-content: center;
+  align-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 4px;
+  display: inline-flex;
+  position: relative;
+  box-shadow: 5px 2px 2px #0006;
+  margin-bottom: 2px;
+}
+.root .summary-container .order-summary .pager .pager-controls .control::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 50%;
+  padding: 0.8px;
+  background: linear-gradient(322deg, #7a7a7a 16.67%, #101010 100%);
+  -webkit-mask: linear-gradient(#101010 0 0) content-box, linear-gradient(#101010 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  z-index: 1;
+  pointer-events: none;
+}
+.root .summary-container .order-summary .pager .pager-controls .control-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  color: #ffffffb3;
+}
+.root .summary-container .order-summary .service-info-title {
+  font-family: GM;
+  font-size: 1.08rem;
+  color: #ffffff;
+  margin: 0;
+  line-height: 22px;
+}
 .root .summary-container .service-info-container {
   display: flex;
   flex-direction: column;
   gap: 16px;
   padding: 8px 16px;
   background: linear-gradient(180deg, #040405 0%, #1f1f20 100%);
+  /* Category filter pills when rendered inside ServiceInfo */
+}
+.root .summary-container .service-info-container .sliderFilters {
+  display: flex;
+  gap: 8px;
+  margin-top: -12px;
+}
+.root .summary-container .service-info-container .sliderFilters button.tab {
+  font-family: GSB;
+  font-size: 0.88rem;
+  color: #b3b3b3;
+  padding: 6px 14px;
+  border-radius: 42px;
+  background: #1e1e1e;
+  border: none;
+  cursor: pointer;
+}
+.root .summary-container .service-info-container .sliderFilters button.tab.active {
+  box-shadow: inset 0px 0px 8px rgba(0, 0, 0, 0.5);
+  position: relative;
+  overflow: hidden;
+}
+.root .summary-container .service-info-container .sliderFilters button.tab.active::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 42px;
+  padding: 1.25px;
+  background: linear-gradient(180deg, #7a7a7a 0%, #101010 90%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
 }
 .root .summary-container .service-info-container .service-info-title {
   font-family: GM;
@@ -2180,7 +2321,7 @@ h6 {
 .root::after {
   content: "";
   position: absolute;
-  bottom: -200px;
+  bottom: -360px;
   left: 0;
   width: 100%;
   height: 500px;

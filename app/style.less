@@ -590,6 +590,11 @@ h6 {
         }
       }
     }
+
+    /* Keep the last section (link input) anchored to the bottom of the page */
+    .platform-container:last-of-type {
+      margin-top: auto;
+    }
   }
 
   .summary-container {
@@ -603,7 +608,7 @@ h6 {
       flex-direction: column;
       gap: 24px;
       padding: 0 16px;
-      height: 160px;
+      height: 120px;
       border-bottom: none;
       background-image: linear-gradient(
         90deg,
@@ -633,7 +638,7 @@ h6 {
 
         .sliderFill {
           position: absolute;
-          height: 100%;
+          height: 16px;
           border-radius: 12px;
           border-top-right-radius: 0;
           border-bottom-right-radius: 0;
@@ -809,6 +814,43 @@ h6 {
         }
       }
 
+      .sliderFilters {
+        display: flex;
+        gap: 8px;
+        margin-top: -12px;
+        button.tab {
+          font-family: @GSB;
+          font-size: 0.88rem;
+          color: #b3b3b3;
+          padding: 6px 14px;
+          border-radius: 42px;
+          background: #1e1e1e;
+          border: none;
+          cursor: pointer;
+        }
+        button.tab.active {
+          box-shadow: inset 0px 0px 8px rgba(0, 0, 0, 0.5);
+          position: relative;
+          overflow: hidden;
+        }
+        button.tab.active::before {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          border-radius: 42px;
+          padding: 1.25px;
+          background: linear-gradient(180deg, #7a7a7a 0%, #101010 90%);
+          -webkit-mask: linear-gradient(#fff 0 0) content-box,
+            linear-gradient(#fff 0 0);
+          mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
+        }
+      }
+
       &::after {
         content: "";
         opacity: 1;
@@ -966,12 +1008,119 @@ h6 {
       }
     }
 
+    /* Order summary header and pager styling */
+    .order-summary {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      .pager {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #bdbdbd;
+        .pager-count {
+          font-family: @GSB;
+          font-size: 0.76rem;
+        }
+        .pager-controls {
+          display: flex;
+          gap: 8px;
+          .control {
+            -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(8px);
+            z-index: 5;
+            background: rgba(33, 33, 33, 0.64);
+            border: none;
+            border-radius: 50%;
+            justify-content: center;
+            align-items: center;
+            width: 36px;
+            height: 36px;
+            padding: 4px;
+            display: inline-flex;
+            position: relative;
+            box-shadow: 5px 2px 2px #0006;
+            margin-bottom: 2px;
+          }
+          .control::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: 50%;
+            padding: 0.8px;
+            background: linear-gradient(322deg, #7a7a7a 16.67%, #101010 100%);
+            -webkit-mask: linear-gradient(#101010 0 0) content-box,
+              linear-gradient(#101010 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            z-index: 1;
+            pointer-events: none;
+          }
+          .control-icon {
+            width: 18px;
+            height: 18px;
+            display: block;
+            color: #ffffffb3;
+          }
+        }
+      }
+
+      .service-info-title {
+        font-family: @GM;
+        font-size: 1.08rem;
+        color: #ffffff;
+        margin: 0;
+        line-height: 22px;
+      }
+    }
+
     .service-info-container {
       display: flex;
       flex-direction: column;
       gap: 16px;
       padding: 8px 16px;
       background: linear-gradient(180deg, #040405 0%, #1f1f20 100%);
+
+      /* Category filter pills when rendered inside ServiceInfo */
+      .sliderFilters {
+        display: flex;
+        gap: 8px;
+        margin-top: -12px;
+        button.tab {
+          font-family: @GSB;
+          font-size: 0.88rem;
+          color: #b3b3b3;
+          padding: 6px 14px;
+          border-radius: 42px;
+          background: #1e1e1e;
+          border: none;
+          cursor: pointer;
+        }
+        button.tab.active {
+          box-shadow: inset 0px 0px 8px rgba(0, 0, 0, 0.5);
+          position: relative;
+          overflow: hidden;
+        }
+        button.tab.active::before {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          border-radius: 42px;
+          padding: 1.25px;
+          background: linear-gradient(180deg, #7a7a7a 0%, #101010 90%);
+          -webkit-mask: linear-gradient(#fff 0 0) content-box,
+            linear-gradient(#fff 0 0);
+          mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
+        }
+      }
 
       .service-info-title {
         font-family: @GM;
@@ -2538,7 +2687,7 @@ h6 {
 .root::after {
   content: "";
   position: absolute;
-  bottom: -200px;
+  bottom: -360px;
   left: 0;
   width: 100%;
   height: 500px;
