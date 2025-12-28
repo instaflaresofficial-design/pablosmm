@@ -5,9 +5,10 @@ import ServiceInfoPanel from '@/components/order/ServiceInfo'
 import Preview from '@/components/preview/Preview'
 import { useNormalizedServices } from '@/lib/useServices'
 import { useSearchParams } from 'next/navigation'
-import React, { useMemo, useState } from 'react'
+import React, { Suspense, useMemo, useState } from 'react'
 import type { Platform, ServiceType, Variant } from '@/types/smm'
 
+// Hook that reads URL search params. Must be used within a <Suspense> boundary in Next.js app router.
 function useSelectionFromQuery() {
   const params = useSearchParams();
   const platform = (params.get('platform') || 'instagram') as Platform;
@@ -19,7 +20,8 @@ function useSelectionFromQuery() {
 
 type Category = 'recommended' | 'cheapest' | 'premium';
 
-const page = () => {
+// Isolated content placed under Suspense to satisfy useSearchParams requirements during prerender/hydration
+const SummaryContent = () => {
   const { platform, service, variant } = useSelectionFromQuery();
   const { services: all, loading } = useNormalizedServices();
   const [quantity, setQuantity] = useState<number>(1000);
@@ -72,5 +74,11 @@ const page = () => {
     </div>
   )
 }
-
-export default page
+// Page component wraps the content in Suspense to avoid CSR bailout errors for useSearchParams
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <SummaryContent />
+    </Suspense>
+  );
+}
