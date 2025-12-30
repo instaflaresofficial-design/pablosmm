@@ -1,0 +1,78 @@
+"use client";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+
+export type Currency = 'USD' | 'INR';
+
+type Ctx = {
+  currency: Currency;
+  setCurrency: (c: Currency) => void;
+  // USD -> display currency conversion rate (INR per USD when INR selected)
+  usdToInr: number;
+  // Convert an amount in USD to the active currency number
+  convert: (amountUsd: number) => number;
+  // Format a number in active currency compact (K/M suffix)
+  formatMoneyCompact: (amountUsd: number) => string;
+  // Format a number in active currency full
+  formatMoney: (amountUsd: number) => string;
+};
+
+const CurrencyContext = createContext<Ctx | null>(null);
+
+const STORAGE_KEY = 'app:currency';
+const DEFAULT_CURRENCY: Currency = 'USD';
+const DEFAULT_USD_TO_INR = 83.0; // simple static rate; can be made dynamic later
+
+function compact(n: number): string {
+  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (Math.abs(n) >= 1_000) return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}K`;
+  return n.toLocaleString();
+}
+
+export function CurrencyProvider({ children }: { children: React.ReactNode }) {
+  const [currency, setCurrencyState] = useState<Currency>(DEFAULT_CURRENCY);
+  const [usdToInr] = useState<number>(DEFAULT_USD_TO_INR);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY) as Currency | null;
+      if (saved === 'USD' || saved === 'INR') setCurrencyState(saved);
+    } catch {}
+  }, []);
+
+  const setCurrency = useCallback((c: Currency) => {
+    setCurrencyState(c);
+    try { localStorage.setItem(STORAGE_KEY, c); } catch {}
+  }, []);
+
+  const convert = useCallback((amountUsd: number) => {
+    return currency === 'INR' ? amountUsd * usdToInr : amountUsd;
+  }, [currency, usdToInr]);
+
+  const formatMoney = useCallback((amountUsd: number) => {
+    const n = convert(amountUsd);
+    if (currency === 'INR') {
+      try { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n); } catch {}
+      return `₹${n.toFixed(2)}`;
+    }
+    try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n); } catch {}
+    return `$${n.toFixed(2)}`;
+  }, [convert, currency]);
+
+  const formatMoneyCompact = useCallback((amountUsd: number) => {
+    const n = convert(amountUsd);
+    const symbol = currency === 'INR' ? '₹' : '$';
+    return `${symbol}${compact(n)}`;
+  }, [convert, currency]);
+
+  const value = useMemo<Ctx>(() => ({ currency, setCurrency, usdToInr, convert, formatMoneyCompact, formatMoney }), [currency, setCurrency, usdToInr, convert, formatMoneyCompact, formatMoney]);
+
+  return (
+    <CurrencyContext.Provider value={value}>{children}</CurrencyContext.Provider>
+  );
+}
+
+export function useCurrency() {
+  const ctx = useContext(CurrencyContext);
+  if (!ctx) throw new Error('useCurrency must be used within CurrencyProvider');
+  return ctx;
+}

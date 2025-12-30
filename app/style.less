@@ -358,6 +358,50 @@ h6 {
     }
   }
 
+  /* Currency strip at the very top */
+  .currency-strip {
+    width: 100%;
+    background: linear-gradient(180deg, #0a0a0a 0%, #161616 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    .currency-strip-inner {
+      max-width: 1024px;
+      margin: 0 auto;
+      padding: 6px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      .label {
+        font-family: @GSB;
+        font-size: 0.72rem;
+        color: #8a8a8a;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+      }
+      .switch {
+        display: flex;
+        gap: 8px;
+        .pill {
+          padding: 4px 10px;
+          border-radius: 16px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          background: #1b1b1b;
+          color: #d9d9d9;
+          font-family: @GSB;
+          font-size: 0.78rem;
+        }
+        .pill.active {
+          color: #fff;
+          background: #242424;
+          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+        }
+      }
+    }
+  }
+
   .navigation::after {
     content: "";
     position: absolute;
@@ -608,7 +652,7 @@ h6 {
       flex-direction: column;
       gap: 24px;
       padding: 0 16px;
-      height: 120px;
+      height: 160px;
       border-bottom: none;
       background-image: linear-gradient(
         90deg,
@@ -811,6 +855,42 @@ h6 {
               color: #ffffff;
             }
           }
+        }
+      }
+
+      /* Toggle between quantity and amount */
+      .modeSwitch {
+        display: flex;
+        gap: 8px;
+        margin-top: -12px;
+        .pill {
+          padding: 6px 12px;
+          border-radius: 16px;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          background: #1b1b1b;
+          color: #d9d9d9;
+          font-family: @GSB;
+          font-size: 0.82rem;
+        }
+        .pill.active {
+          color: #fff;
+          background: #242424;
+          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+        }
+      }
+
+      /* Budget input box styled like quantity */
+      .sliderInfo .budgetBox {
+        position: relative;
+        padding-left: 28px; // space for symbol
+        .currency-symbol {
+          position: absolute;
+          left: 8px;
+          top: 50%;
+          transform: translateY(-50%);
+          color: #d9d9d9;
+          font-family: @GSB;
+          font-size: 0.9rem;
         }
       }
 
@@ -1279,7 +1359,7 @@ h6 {
       .description-container {
         border-radius: 8px;
         flex-direction: column;
-        gap: 0px;
+        gap: 12px;
         margin-top: -8px;
         padding: 8px;
         display: flex;
@@ -1296,8 +1376,52 @@ h6 {
           font-size: 0.96rem;
           color: rgba(255, 255, 255, 0.82);
           line-height: 1.5;
+          white-space: pre-line; // preserve line breaks from provider descriptions
+
+          ul,
+          ol {
+            margin: 0;
+            padding-left: 1rem;
+          }
+          li {
+            margin: 4px 0;
+          }
         }
       }
+    }
+  }
+
+  /* Fallback global selectors in case of reuse */
+  .modeSwitch {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    .pill {
+      padding: 6px 12px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #1b1b1b;
+      color: #d9d9d9;
+      font-family: @GSB;
+      font-size: 0.82rem;
+    }
+    .pill.active {
+      color: #fff;
+      background: #242424;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    }
+  }
+  .sliderInfo .budgetBox {
+    position: relative;
+    padding-left: 28px;
+    .currency-symbol {
+      position: absolute;
+      left: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #d9d9d9;
+      font-family: @GSB;
+      font-size: 0.9rem;
     }
   }
 

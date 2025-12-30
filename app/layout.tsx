@@ -3,6 +3,8 @@ import "./style.css";
 import Header from "@/components/layout/Header";
 import BottomSheet from "@/components/modal/BottomSheet";
 import HeaderSwitch from "@/components/layout/HeaderSwitch";
+import CurrencyStrip from "@/components/layout/CurrencyStrip";
+import { CurrencyProvider } from "@/components/layout/CurrencyProvider";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -20,11 +22,14 @@ export default function RootLayout({
         <meta name="cryptomus" content="e01f06fd" />
       </head>
       <body>
-        <div className="root">
-          <HeaderSwitch />
-          {children}      
-        </div>
-        <BottomSheet />
+        <CurrencyProvider>
+          <div className="root">
+            <CurrencyStrip />
+            <HeaderSwitch />
+            {children}
+          </div>
+          <BottomSheet />
+        </CurrencyProvider>
       </body>
     </html>
   );
