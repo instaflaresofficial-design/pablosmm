@@ -1,5 +1,5 @@
-// Minimal API client for SMM provider(s)
-export type EarthPanelService = {
+// Minimal API client for SMM provider(s) using common SMM v2 API
+export type PanelV2Service = {
 	service: string; // id as string
 	type: string;
 	rate: string | number;
@@ -15,35 +15,35 @@ export type EarthPanelService = {
 	average_time?: number | string;
 };
 
-const PROVIDER_URL = 'https://www.theearthpanel.com/api/v2';
-
-function getApiKey(): string {
-	// Prefer env var, fallback to provided key if present (development only)
-	const fromEnv = process.env.EARTHPANEL_API_KEY || process.env.NEXT_PUBLIC_EARTHPANEL_API_KEY;
-	return (fromEnv && fromEnv.trim()) || '65f019a6902877f30a7961997e01c6496514db7b';
-}
-
 async function postForm<T = unknown>(url: string, body: Record<string, string>): Promise<T> {
-	const res = await fetch(url, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/x-www-form-urlencoded',
-		},
-		body: new URLSearchParams(body).toString(),
-		// Avoid caching provider responses implicitly
-		cache: 'no-store',
-	});
-	if (!res.ok) {
-		const text = await res.text().catch(() => '');
-		throw new Error(`Provider HTTP ${res.status}: ${text}`);
+	// add a short timeout to avoid hanging when a provider is slow/unreachable
+	const controller = new AbortController();
+	const timeoutMs = 7000;
+	const id = setTimeout(() => controller.abort(), timeoutMs);
+	try {
+		const res = await fetch(url, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/x-www-form-urlencoded',
+			},
+			body: new URLSearchParams(body).toString(),
+			// Avoid caching provider responses implicitly
+			cache: 'no-store',
+			signal: controller.signal,
+		});
+		if (!res.ok) {
+			const text = await res.text().catch(() => '');
+			throw new Error(`Provider HTTP ${res.status}: ${text}`);
+		}
+		return (await res.json()) as T;
+	} finally {
+		clearTimeout(id);
 	}
-	return (await res.json()) as T;
 }
 
-export async function fetchEarthPanelServices(): Promise<EarthPanelService[]> {
-	const key = getApiKey();
-	const data = await postForm<EarthPanelService[] | { error: string }>(PROVIDER_URL, {
-		key,
+export async function fetchPanelServices(apiUrl: string, apiKey: string): Promise<PanelV2Service[]> {
+	const data = await postForm<PanelV2Service[] | { error: string }>(apiUrl, {
+		key: apiKey,
 		action: 'services',
 	});
 	if (!Array.isArray(data)) {
@@ -51,4 +51,6 @@ export async function fetchEarthPanelServices(): Promise<EarthPanelService[]> {
 	}
 	return data;
 }
+
+export { postForm };
 

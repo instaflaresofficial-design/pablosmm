@@ -1,10 +1,7 @@
 import type { Metadata } from "next";
 import "./style.css";
-import Header from "@/components/layout/Header";
-import BottomSheet from "@/components/modal/BottomSheet";
-import HeaderSwitch from "@/components/layout/HeaderSwitch";
-import CurrencyStrip from "@/components/layout/CurrencyStrip";
 import { CurrencyProvider } from "@/components/layout/CurrencyProvider";
+import RootShell from "@/components/layout/RootShell";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -23,12 +20,7 @@ export default function RootLayout({
       </head>
       <body>
         <CurrencyProvider>
-          <div className="root">
-            <CurrencyStrip />
-            <HeaderSwitch />
-            {children}
-          </div>
-          <BottomSheet />
+          <RootShell>{children}</RootShell>
         </CurrencyProvider>
       </body>
     </html>

@@ -1,0 +1,12 @@
+{
+  "providers": [
+    {
+      "key": "d47bf4c56c00880dc987c1debf729b84b86a0f2d",
+      "name": "TopSMM",
+      "apiUrl": "https://topsmm.in/api/v2",
+      "apiKey": "d47bf4c56c00880dc987c1debf729b84b86a0f2d",
+      "enabled": true,
+      "currency": "INR"
+    }
+  ]
+}

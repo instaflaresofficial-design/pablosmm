@@ -21,7 +21,7 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
   activeCategory,
   onCategoryChange,
 }) => {
-  const { formatMoneyCompact, convert, currency, usdToInr } = useCurrency();
+  const { formatMoneyCompact, convert, currency, usdToInr, convertToUsd } = useCurrency();
   const [quantity, setQuantity] = useState<number>(10000);
   const [fillPercentage, setFillPercentage] = useState<number>(0);
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -142,7 +142,7 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
   useEffect(() => {
     if (mode === 'amount') {
       const nActive = parseFloat(budgetValue || '0');
-      const budgetUsd = currency === 'INR' ? nActive / usdToInr : nActive;
+      const budgetUsd = convertToUsd(nActive);
       const q = Math.floor(budgetUsd / pricePerUnit);
       const snapped = snapToStep(Math.max(min, Math.min(max, isFinite(q) ? q : min)));
       setQuantity(snapped);
@@ -155,7 +155,7 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
   const previewQuantity = React.useMemo(() => {
     if (mode !== 'amount') return quantity;
     const nActive = budgetEditing ? parseFloat(budgetValue || '0') : convert(totalPriceNumberUsd);
-    const budgetUsd = currency === 'INR' ? (budgetEditing ? nActive / usdToInr : totalPriceNumberUsd) : (budgetEditing ? nActive : totalPriceNumberUsd);
+    const budgetUsd = budgetEditing ? convertToUsd(nActive) : totalPriceNumberUsd;
     const q = Math.floor((isFinite(budgetUsd) && pricePerUnit > 0) ? budgetUsd / pricePerUnit : min);
     const snapped = snapToStep(Math.max(min, Math.min(max, isFinite(q) ? q : min)));
     return snapped;
@@ -231,7 +231,7 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
               }}
               onBlur={() => {
                 const nActive = parseFloat(budgetValue || '0');
-                const budgetUsd = currency === 'INR' ? nActive / usdToInr : nActive;
+                const budgetUsd = convertToUsd(nActive);
                 const q = Math.floor(budgetUsd / pricePerUnit);
                 const snapped = snapToStep(Math.max(min, Math.min(max, isFinite(q) ? q : min)));
                 setQuantity(snapped);

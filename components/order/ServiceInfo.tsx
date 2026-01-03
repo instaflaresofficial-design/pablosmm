@@ -92,9 +92,7 @@ export default function ServiceInfo({ services, index = 0, onChangeIndex, servic
   const qualityLabel = classifyQuality(hay);
   const targetingLabel = extractTargeting(hay);
   const stabilityLabel = classifyStability(hay, !!current?.refill);
-  const title = current
-    ? `${current.platform.toUpperCase()} ${current.type.charAt(0).toUpperCase() + current.type.slice(1)}${current.variant !== 'any' ? ' · ' + current.variant.toUpperCase() : ''}`
-    : 'Instagram Likes';
+  const title = current ? `${current.providerName} · ${current.sourceServiceId ?? current.id}` : 'Service';
 
   return (
     <div className='service-info-container'>
@@ -141,9 +139,7 @@ export default function ServiceInfo({ services, index = 0, onChangeIndex, servic
                 </button>
               </div>
             </div>
-            <h3 className='service-info-title'>
-              {title} {current?.providerName ? `[ ${current.providerName} ]` : ''} {current?.refill ? '[ Refill ]' : ''}
-            </h3>
+            <h3 className='service-info-title'>{title}</h3>
             </div>
           </>
         )}

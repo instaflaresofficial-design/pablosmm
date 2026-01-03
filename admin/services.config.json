@@ -1,0 +1,28 @@
+{
+  "strict": false,
+  "defaultMarginPercent": 0,
+  "overrides": [
+    {
+      "source": "earthpanel",
+      "sourceServiceId": "1918",
+      "include": true,
+      "platform": "instagram",
+      "type": "likes",
+      "variant": "post",
+      "displayName": "Instagram Instant Likes | HQ",
+      "marginPercent": 500
+    },
+    {
+      "source": "earthpanel",
+      "sourceServiceId": "1919",
+      "include": true,
+      "marginPercent": 10000
+    },
+    {
+      "source": "earthpanel",
+      "sourceServiceId": "2421",
+      "include": true,
+      "customRatePer1000": 1.5
+    }
+  ]
+}
