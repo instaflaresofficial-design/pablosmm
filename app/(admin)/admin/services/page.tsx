@@ -155,7 +155,7 @@ export default function AdminServicesPage() {
       const next = { ...prev, overrides: [...(prev.overrides || [])], excludedCategories: [...(prev.excludedCategories || [])] } as AdminConfig;
       raw.filter(s => (s.category || '') === cat).forEach(s => {
         const idx = next.overrides!.findIndex(o => o.source === s.source && o.sourceServiceId === s.sourceServiceId);
-        if (idx === -1) next.overrides!.push({ source: s.source, sourceServiceId: s.sourceServiceId, include: false });
+        if (idx === -1) next.overrides!.push({ source: s.source??'', sourceServiceId: s.sourceServiceId??'', include: false });
         else next.overrides![idx] = { ...next.overrides![idx], include: false } as any;
       });
       if (!next.excludedCategories!.includes(cat)) next.excludedCategories!.push(cat);
