@@ -5,7 +5,7 @@ import authOptions from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 export default async function Page() {
-  const session = await getServerSession(authOptions as any);
+  const session = await getServerSession(authOptions as any) as any;
   if (!session?.user?.email) {
     return (
       <div className='wallet-page'>

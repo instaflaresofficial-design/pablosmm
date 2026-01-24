@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     const { serviceId, sourceServiceId, quantity, link } = body || {};
 
     // Require authenticated user
-    const session = await getServerSession(authOptions as any);
+    const session = await getServerSession(authOptions as any) as any;
     if (!session || !session.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

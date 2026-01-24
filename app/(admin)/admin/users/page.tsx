@@ -1,13 +1,13 @@
-import { getServerSession } from 'next-auth'
+import { getServerSession } from 'next-auth/next'
 import authOptions from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 import CreditButton from '@/components/admin/CreditButton'
 
 export default async function AdminUsersPage() {
-  const session = await getServerSession(authOptions as any);
+  const session = await getServerSession(authOptions as any) as any;
   if (!session?.user) return <div className="admin-container">Unauthorized</div>;
-  const userRole = (session.user as any).role || 'user';
+  const userRole = ((session?.user as any)?.role) || 'user';
   if (userRole !== 'admin') return <div className="admin-container">Forbidden</div>;
 
   const users = await prisma.user.findMany({ include: { wallet: true, orders: true } });
