@@ -27,7 +27,7 @@ export default async function AdminUsersPage() {
             </tr>
           </thead>
           <tbody>
-            {users.map(u => (
+            {users.map((u: any) => (
               <tr key={u.id}>
                 <td>{u.name || ('u' + u.id)}</td>
                 <td>{u.email}</td>
