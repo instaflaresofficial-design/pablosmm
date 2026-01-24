@@ -1,6 +1,6 @@
 {
   "strict": false,
-  "defaultMarginPercent": 0,
+  "defaultMarginPercent": 1000,
   "overrides": [
     {
       "source": "earthpanel",

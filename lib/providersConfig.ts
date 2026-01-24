@@ -9,6 +9,8 @@ export type ProviderConfig = {
   enabled?: boolean;     // whether to use this provider
   // Currency that provider reports rates in. Supported: 'USD'|'INR'. Defaults to 'USD'
   currency?: 'USD' | 'INR';
+  // Optional provider-specific FX (INR per USD). If provided, used to convert INR->USD instead of global FX.
+  fx?: number;
 };
 
 export type ProvidersFile = {

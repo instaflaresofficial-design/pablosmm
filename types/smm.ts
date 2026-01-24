@@ -1,5 +1,5 @@
 export type Platform = 'instagram' | 'facebook' | 'x' | 'telegram' | 'tiktok' | 'youtube';
-export type ServiceType = 'followers' | 'likes' | 'views' | 'comments' | 'shares' | 'votes';
+export type ServiceType = 'followers' | 'likes' | 'views' | 'comments' | 'shares' | 'votes' | 'saves';
 export type Variant = 'any' | 'post' | 'reel' | 'story' | 'igtv' | 'video' | 'live' | 'short';
 
 export interface NormalizedSmmService {

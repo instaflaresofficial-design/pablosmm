@@ -46,11 +46,24 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     let mounted = true;
     const fetchRate = async () => {
       try {
-        const res = await fetch('https://api.exchangerate.host/latest?base=USD&symbols=INR');
+        // Prefer server-side FX endpoint so client and server use the same source/fallbacks
+        const res = await fetch('/api/fx');
         const j = await res.json();
-        const rate = j?.rates?.INR;
-        if (mounted && typeof rate === 'number' && isFinite(rate) && rate > 0) {
+        const rate = j?.usdToInr ?? j?.rates?.INR;
+        // Validate server-provided rate to avoid bogus scraped values
+        if (mounted && typeof rate === 'number' && isFinite(rate) && rate > 0 && rate > 10 && rate < 1000) {
           setUsdToInr(rate);
+          return;
+        }
+      } catch {
+        // fallthrough to client-side fallback below
+      }
+      try {
+        const res2 = await fetch('https://api.exchangerate.host/latest?base=USD&symbols=INR');
+        const j2 = await res2.json();
+        const rate2 = j2?.rates?.INR;
+        if (mounted && typeof rate2 === 'number' && isFinite(rate2) && rate2 > 0) {
+          setUsdToInr(rate2);
         }
       } catch {
         // ignore and keep default

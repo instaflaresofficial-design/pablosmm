@@ -21,6 +21,17 @@ export const serviceCategories = {
       "alt": "Comments",
       "icon": "comments"
     }
+    ,
+    {
+      "name": "shares",
+      "alt": "Shares",
+      "icon": "shares"
+    },
+    {
+      "name": "saves",
+      "alt": "Saves",
+      "icon": "save"
+    }
   ],
   "youtube": [
     {

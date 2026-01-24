@@ -1,0 +1,141 @@
+.preview-root {
+    width: 100%;
+    max-width: 420px;
+    margin: 12px auto;
+    padding: 12px;
+    font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+}
+
+.preview-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+}
+
+@media (min-width: 768px) {
+    .preview-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.post-card,
+.profile-card {
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    overflow: hidden;
+}
+
+.post-card .p-4,
+.profile-card .p-4 {
+    padding: 16px;
+}
+
+.post-card .w-5\/6 {
+    width: 83.333333%;
+}
+
+.post-card .h-32 {
+    height: 8rem;
+}
+
+.post-card .h-44 {
+    height: 11rem;
+}
+
+.post-card .text-sm {
+    font-size: 0.875rem;
+}
+
+.post-card .text-lg {
+    font-size: 1.125rem;
+}
+
+.profile-card {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+}
+
+.profile-card .w-14 {
+    width: 56px;
+    height: 56px;
+    border-radius: 9999px;
+    background: #edf2f7;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.profile-card .text-sm {
+    font-size: 0.875rem;
+}
+
+button {
+    cursor: pointer;
+}
+
+button:focus {
+    outline: 2px solid rgba(59, 130, 246, 0.5);
+    outline-offset: 2px;
+}
+
+/* Constrain SVG/icon sizes inside preview to avoid global overrides making them huge */
+.preview-root svg,
+.preview-root img {
+    max-width: 24px !important;
+    max-height: 24px !important;
+}
+
+/* Specific larger placeholder image area */
+.post-card .image-placeholder {
+    width: 83.333333%;
+    height: 6rem;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.post-card .image-placeholder .placeholder-inner {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Stats row (likes/comments) */
+.post-card .stats {
+    margin-top: 8px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    font-size: 13px;
+    color: #475569;
+}
+
+.post-card .stats svg {
+    width: 16px !important;
+    height: 16px !important;
+}
+
+/* Ensure buttons and small elements remain compact */
+button {
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+button:focus {
+    outline: 2px solid rgba(59, 130, 246, 0.5);
+    outline-offset: 2px;
+}
+
+/* Keep cards visually separated but not too tall on mobile */
+.post-card,
+.profile-card {
+    margin-bottom: 6px;
+}

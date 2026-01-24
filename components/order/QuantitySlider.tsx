@@ -11,6 +11,9 @@ interface QuantitySliderProps {
   // Optional category filter UI just below sliderInfo
   activeCategory?: 'recommended' | 'cheapest' | 'premium';
   onCategoryChange?: (c: 'recommended' | 'cheapest' | 'premium') => void;
+  onOrder?: () => Promise<void> | void;
+  ordering?: boolean;
+  orderStatus?: string | null;
 }
 
 const QuantitySlider: React.FC<QuantitySliderProps> = ({
@@ -20,9 +23,12 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
   onChange,
   activeCategory,
   onCategoryChange,
+  onOrder,
+  ordering,
+  orderStatus,
 }) => {
   const { formatMoneyCompact, convert, currency, usdToInr, convertToUsd } = useCurrency();
-  const [quantity, setQuantity] = useState<number>(10000);
+  const [quantity, setQuantity] = useState<number>(1000);
   const [fillPercentage, setFillPercentage] = useState<number>(0);
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editingValue, setEditingValue] = useState<string>("");
@@ -266,6 +272,7 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
           )}
         </div>
       </div>
+
       <div className="modeSwitch" role="tablist" aria-label="Quantity or amount">
         <button
           role="tab"
@@ -284,6 +291,24 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
           Amount
         </button>
       </div>
+
+      {/* Order button injected here as requested */}
+      {typeof onOrder === 'function' && (
+        <div className="order-actions">
+          <button
+            className="btn-order"
+            onClick={() => { if (!ordering) onOrder(); }}
+            disabled={ordering}
+            aria-live="polite"
+          >
+            {ordering ? 'Ordering…' : (
+              <span>place order for <span className="order-amount">{currency === 'INR' ? formatINR(convert(totalPriceNumberUsd)) : `$${(convert(totalPriceNumberUsd)).toFixed(2)}`}</span></span>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* status toasts are handled globally via react-hot-toast in the summary page */}
     </div>
   );
 };

@@ -17,6 +17,7 @@ type OverrideRow = {
 type AdminConfig = {
   strict?: boolean;
   defaultMarginPercent?: number;
+  excludedCategories?: string[];
   overrides?: Array<{
     source: string;
     sourceServiceId: string;
@@ -41,6 +42,8 @@ export default function AdminServicesPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedServiceKey, setSelectedServiceKey] = useState('');
 
   useEffect(() => {
     async function load() {
@@ -73,6 +76,16 @@ export default function AdminServicesPage() {
 
   const { formatMoneyCompact, usdToInr } = useCurrency();
 
+  const formatProviderCurrency = (amount: number, cur?: 'USD' | 'INR') => {
+    const c = cur || 'USD';
+    try {
+      if (c === 'INR') return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 4 }).format(amount);
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 4 }).format(amount);
+    } catch {
+      return (c === 'INR' ? '₹' : '$') + amount.toFixed(4);
+    }
+  };
+
   const rows = useMemo(() => {
     const map = new Map<string, OverrideRow>();
     (cfg.overrides || []).forEach(o => {
@@ -88,13 +101,27 @@ export default function AdminServicesPage() {
       });
     });
     return raw
-      .filter(s => (s.providerName + ' ' + s.category).toLowerCase().includes(query.toLowerCase()))
+      .filter(s => {
+        const q = query.toLowerCase().trim();
+        const key = `${s.source}:${s.sourceServiceId}`;
+        const override = map.get(key);
+        // Exclude category if configured and not explicitly included by override
+        if ((cfg.excludedCategories || []).includes(s.category || '')) {
+          if (!override || !override.include) return false;
+        }
+        // Category/service selectors
+        if (selectedCategory && (s.category || '') !== selectedCategory) return false;
+        if (selectedServiceKey && key !== selectedServiceKey) return false;
+        if (!q) return true;
+        const hay = `${s.providerName || ''} ${s.category || ''} ${s.source || ''} ${s.sourceServiceId || ''}`.toLowerCase();
+        return hay.includes(q);
+      })
       .map(s => {
         const key = `${s.source}:${s.sourceServiceId}`;
         const r = map.get(key) || { key, include: !cfg.strict };
         return { svc: s, row: r };
       });
-  }, [raw, cfg, query]);
+  }, [raw, cfg, query, selectedCategory, selectedServiceKey]);
 
   const upsert = (key: string, patch: Partial<OverrideRow>) => {
     setCfg(prev => {
@@ -107,6 +134,31 @@ export default function AdminServicesPage() {
       const i = next.overrides!.findIndex(o => o.source === source && o.sourceServiceId === sourceServiceId);
       const curr = next.overrides![i];
       next.overrides![i] = { ...curr, ...patch } as any;
+      return next;
+    });
+  };
+
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    raw.forEach(s => set.add(s.category || ''));
+    return Array.from(set).filter(Boolean).sort();
+  }, [raw]);
+
+  const servicesForCategory = useMemo(() => {
+    if (!selectedCategory) return [] as Array<{ key: string; label: string }>;
+    return raw.filter(s => (s.category || '') === selectedCategory).map(s => ({ key: `${s.source}:${s.sourceServiceId}`, label: `${s.providerName} — ${s.sourceServiceId}` }));
+  }, [raw, selectedCategory]);
+
+  const excludeCategory = (cat: string) => {
+    if (!cat) return;
+    setCfg(prev => {
+      const next = { ...prev, overrides: [...(prev.overrides || [])], excludedCategories: [...(prev.excludedCategories || [])] } as AdminConfig;
+      raw.filter(s => (s.category || '') === cat).forEach(s => {
+        const idx = next.overrides!.findIndex(o => o.source === s.source && o.sourceServiceId === s.sourceServiceId);
+        if (idx === -1) next.overrides!.push({ source: s.source, sourceServiceId: s.sourceServiceId, include: false });
+        else next.overrides![idx] = { ...next.overrides![idx], include: false } as any;
+      });
+      if (!next.excludedCategories!.includes(cat)) next.excludedCategories!.push(cat);
       return next;
     });
   };
@@ -131,6 +183,25 @@ export default function AdminServicesPage() {
           Default margin %:&nbsp;
           <input type="number" value={cfg.defaultMarginPercent || 0} onChange={e => setCfg(c => ({ ...c, defaultMarginPercent: Number(e.target.value || 0) }))} style={{ width:80 }} />
         </label>
+        <label style={{ marginLeft: 12 }}>
+          Category:&nbsp;
+          <select value={selectedCategory} onChange={e => { setSelectedCategory(e.target.value); setSelectedServiceKey(''); }}>
+            <option value="">(all)</option>
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </label>
+        <label style={{ marginLeft: 12 }}>
+          Service:&nbsp;
+          <select value={selectedServiceKey} onChange={e => setSelectedServiceKey(e.target.value)}>
+            <option value="">(all)</option>
+            {servicesForCategory.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+          </select>
+        </label>
+        <button style={{ marginLeft: 8 }} onClick={() => excludeCategory(selectedCategory)} disabled={!selectedCategory}>Exclude Category</button>
+        <button style={{ marginLeft: 8 }} onClick={() => {
+          const toExclude = categories.filter(c => /non\s*working/i.test(c));
+          toExclude.forEach(cat => excludeCategory(cat));
+        }} disabled={categories.filter(c => /non\s*working/i.test(c)).length === 0}>Auto Exclude NON WORKING</button>
         <input placeholder="Search…" value={query} onChange={e => setQuery(e.target.value)} style={{ marginLeft:'auto', minWidth:200 }} />
         <button onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
       </div>
@@ -177,9 +248,9 @@ export default function AdminServicesPage() {
                 </td>
                 <td>
                   <div style={{ fontSize:12, color:'#6c757d' }}>{svc.providerCurrency || 'USD'}</div>
-                  <div>{svc.baseRatePer1000 != null ? svc.baseRatePer1000.toFixed(4) : '-'}</div>
+                  <div>{svc.baseRatePer1000 != null ? formatProviderCurrency(svc.baseRatePer1000, svc.providerCurrency as any) : '-'}</div>
                   <div style={{ color:'#6c757d', fontSize:12 }}>
-                    USD: {(svc.ratePer1000 ?? 0).toFixed(4)}
+                    USD: {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 4 }).format((svc.ratePer1000 ?? 0))}
                   </div>
                   <div style={{ color:'#6c757d', fontSize:12 }}>
                     Provider (active): {

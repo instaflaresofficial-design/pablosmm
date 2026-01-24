@@ -1,12 +1,22 @@
-"use client"
-import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import React from 'react'
+import { getServerSession } from 'next-auth'
+import authOptions from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 
+export default async function Page() {
+  const session = await getServerSession(authOptions as any);
+  if (!session?.user?.email) {
+    return (
+      <div className='wallet-page'>
+        <p>Please <Link href="/auth/login">sign in</Link> to view your wallet.</p>
+      </div>
+    );
+  }
 
-const page = () => {
-  const router = useRouter();
+  const email = session.user.email;
+  const user = await prisma.user.findUnique({ where: { email }, include: { wallet: true } });
+  const balance = ((user?.wallet?.balance ?? 0) / 100).toFixed(2);
 
   return (
     <div className='wallet-page'>
@@ -28,12 +38,12 @@ const page = () => {
                 height={32}
               />
             </div>
-            <span>Tracy's Wallet</span>
+            <span>{user?.name ?? email}'s Wallet</span>
           </div>      
         </div>
         <div className="wallet-container">
           <div className="balance-section">
-            <span className="balance-label">₹0.<span className='decimal'>00</span></span>
+            <span className="balance-label">${balance}</span>
             <span className="balance-amount">wallet balance</span>
           </div>
         </div>
@@ -71,10 +81,8 @@ const page = () => {
               height={40}
             />
           </div>
-          <button onClick={() => router.push('wallet/add')}>Add Money</button>
+          <Link href="/wallet/add"><button>Add Money</button></Link>
         </div>
     </div>
   )
 }
-
-export default page

@@ -16,9 +16,9 @@ const SearchContainer: React.FC<SearchProps> = ({ value = '', onChange }) => {
           value={value}
           onChange={(e) => onChange?.(e.target.value)}
         />
-        <button className="control" aria-label="Filters">
+        {/* <button className="control" aria-label="Filters">
           <img src="/filter.png" alt="filters" className="control-icon" />
-        </button>
+        </button> */}
       </div>
     </div>
   );

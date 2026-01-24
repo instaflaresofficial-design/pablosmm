@@ -6,7 +6,7 @@ import { readProviders } from './providersConfig';
 import { getUsdToInr } from './fx';
 
 const SUPPORTED_PLATFORMS: Platform[] = ['instagram', 'facebook', 'x', 'telegram', 'tiktok', 'youtube'];
-const SUPPORTED_TYPES: ServiceType[] = ['followers', 'likes', 'views', 'comments', 'shares', 'votes'];
+const SUPPORTED_TYPES: ServiceType[] = ['followers', 'likes', 'views', 'comments', 'shares', 'votes', 'saves'];
 
 const platformRegex: Record<Platform, RegExp> = {
 	instagram: /(\binstagram\b|\big\b|\binsta\b)/i,
@@ -24,6 +24,7 @@ const typeRegex: Record<ServiceType, RegExp> = {
 	views: /\bview(s)?\b|\bplay(s)?\b|\bwatch(es)?\b|\bimpression(s)?\b|\breach\b/i,
 	shares: /\bshare(s)?\b|\brepost(s)?\b|\bretweet(s)?\b|\bforward(s)?\b/i,
 	votes: /\bvote(s)?\b|\bpoll(s)?\b/i,
+	saves: /\bsave(s)?\b|\bbookmark(s)?\b|\bsaved\b/i,
 };
 
 const hardExcludeRx = /(\bdm\b|direct\s*message|inbox)/i;
@@ -79,13 +80,18 @@ function detectType(s: PanelV2Service): ServiceType | null {
 	const hay = `${s.category} ${s.name} ${s.description ?? ''} ${s.desc ?? ''}`;
 	if (hardExcludeRx.test(hay)) return null; // ignore DM/inbox services by default
 
+	// Weight category matches more heavily — many provider panels organize services
+	// into category headings (e.g. "Instagram Comments") so prefer explicit category
+	// mentions when available to avoid misclassification.
+	const catHay = String(s.category || '');
 	const scores: Record<ServiceType, number> = {
-		comments: countMatches(typeRegex.comments, hay) * 3,
-		likes: countMatches(typeRegex.likes, hay) * 2,
-		followers: countMatches(typeRegex.followers, hay) * 2,
-		views: countMatches(typeRegex.views, hay) * 2,
-		shares: countMatches(typeRegex.shares, hay),
-		votes: countMatches(typeRegex.votes, hay),
+		comments: countMatches(typeRegex.comments, hay) * 3 + countMatches(typeRegex.comments, catHay) * 10,
+		likes: countMatches(typeRegex.likes, hay) * 2 + countMatches(typeRegex.likes, catHay) * 10,
+		followers: countMatches(typeRegex.followers, hay) * 2 + countMatches(typeRegex.followers, catHay) * 10,
+		views: countMatches(typeRegex.views, hay) * 2 + countMatches(typeRegex.views, catHay) * 10,
+		shares: countMatches(typeRegex.shares, hay) + countMatches(typeRegex.shares, catHay) * 10,
+		saves: countMatches(typeRegex.saves, hay) + countMatches(typeRegex.saves, catHay) * 10,
+		votes: countMatches(typeRegex.votes, hay) + countMatches(typeRegex.votes, catHay) * 10,
 	};
 
 	// Resolve common conflicts: prefer explicit term with higher score
@@ -158,8 +164,17 @@ export async function aggregateRawServices(): Promise<NormalizedSmmService[]> {
 			// Normalize provider currency to USD per 1000 for internal representation
 			let baseRateUsd = baseRatePer1000;
 			const provCurrency = (prov as any).currency || 'USD';
-			if (provCurrency === 'INR' && baseRatePer1000 > 0 && fxRate && fxRate > 0) {
-				baseRateUsd = baseRatePer1000 / fxRate;
+			// If provider returns an explicit USD price field, prefer that (common field names)
+			const maybeUsd = toNumber((s as any).usd ?? (s as any).rate_usd ?? (s as any).price_usd ?? (s as any).usd_price);
+			if (typeof maybeUsd === 'number' && maybeUsd > 0) {
+				baseRateUsd = maybeUsd;
+			} else if (provCurrency === 'INR' && baseRatePer1000 > 0) {
+				// If provider supplies an explicit fx in config, use it; otherwise fall back to shared fxRate
+				const provFx = (prov as any).fx;
+				const useFx = typeof provFx === 'number' && provFx > 0 ? provFx : fxRate;
+				if (useFx && useFx > 0) {
+					baseRateUsd = baseRatePer1000 / useFx;
+				}
 			}
 			all.push({
 				id: `${prov.key}:${s.service}`,

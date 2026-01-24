@@ -1,8 +1,26 @@
-import React from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { getServerSession } from 'next-auth'
+import authOptions from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 
-const page = () => {
+export default async function Page() {
+  const session = await getServerSession(authOptions as any);
+  if (!session?.user?.email) {
+    // show a minimal unauthenticated view
+    return (
+      <div className='profile-page'>
+        <p>Please sign in to view your profile. <Link href="/auth/login">Sign in</Link></p>
+      </div>
+    );
+  }
+
+  const email = session.user.email;
+  const user = await prisma.user.findUnique({ where: { email }, include: { wallet: true } });
+
+  const displayName = user?.name || session.user.name || email.split('@')[0];
+  const walletBalance = ((user?.wallet?.balance ?? 0) / 100).toFixed(2);
+
   return (
     <div className='profile-page'>
       <div className="user-container">
@@ -10,10 +28,10 @@ const page = () => {
         <div className="text-container">
           <div className="user-info-container">
             <div className="username">
-              <h3>Tracy Clinton</h3>
+              <h3>{displayName}</h3>
               <Link href="/profile/edit" className="edit-link"><Image src="/profile/edit.png" alt="Edit" width={20} height={20} /></Link>
             </div>
-            <p className="user-email">tracy.clinton@example.com</p>
+            <p className="user-email">{email}</p>
           </div>
 
             <Link className='signout' href="/logout">Sign Out <Image src="/profile/sign-out.png" alt="Sign Out" width={20} height={20} /></Link>
@@ -26,7 +44,7 @@ const page = () => {
             <div className="top-container">
               <div className="balance-container">
                 <p className="balance-label">Wallet Balance</p>
-                <p className="balance-amount">$1,05,750</p>
+                <p className="balance-amount">${walletBalance}</p>
               </div>
               <select className="currency-select" defaultValue="INR">
                 <option value="USD">USD</option>
@@ -36,22 +54,22 @@ const page = () => {
             <div className="bottom-container">
               <div className="stats">
                 <p>Total Spend</p>
-                <span>₹27,300</span>
+                <span>—</span>
               </div>
               <div className="stats">
                 <p>Completed Orders</p>
-                <span>212</span>
+                <span>—</span>
               </div>
             </div>
           </div>
           <div className="stats-container">
             <div className="stat">
               <p className="stat-label">Active Orders</p>
-              <p className="stat-value">5</p>
+              <p className="stat-value">—</p>
             </div>
             <div className="stat">
               <p className="stat-label">Failed/Refunded Orders</p>
-              <p className="stat-value">2</p>
+              <p className="stat-value">—</p>
             </div>
           </div>
         </div>
@@ -68,5 +86,3 @@ const page = () => {
     </div>
   )
 }
-
-export default page
