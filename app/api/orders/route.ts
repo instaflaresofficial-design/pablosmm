@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server'
 import fs from 'fs/promises'
-import { getServerSession } from 'next-auth'
-import authOptions from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
-import { loadNormalizedServices } from '@/lib/smmProvider'
+import { getServerSession } from 'next-auth/next'
 
 // POST /api/orders
 // Expects JSON { serviceId, sourceServiceId, quantity, link }
 export async function POST(req: Request) {
   try {
+    const { default: authOptions } = await import('@/lib/auth');
+    const { prisma } = await import('@/lib/prisma');
+    const { loadNormalizedServices } = await import('@/lib/smmProvider');
+    
     const body = await req.json();
     const { serviceId, sourceServiceId, quantity, link } = body || {};
 

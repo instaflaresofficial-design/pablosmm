@@ -1,7 +1,7 @@
 import NextAuth from 'next-auth'
 
 async function handler(req: any, res: any) {
-  const authOptions = (await import('@/lib/auth')).default;
+  const { default: authOptions } = await import('@/lib/auth');
   return NextAuth(authOptions as any)(req, res);
 }
 
