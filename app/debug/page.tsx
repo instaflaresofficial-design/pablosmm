@@ -1,3 +1,5 @@
+'use client';
+
 export default function DebugPage() {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'NOT SET';
 
