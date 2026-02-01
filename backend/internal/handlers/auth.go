@@ -332,12 +332,14 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set Cookie
+	// Set Cookie with production-safe settings
 	http.SetCookie(w, &http.Cookie{
 		Name:     "auth_token",
 		Value:    tokenString,
 		Expires:  expirationTime,
 		HttpOnly: true,
+		Secure:   true,                  // Required for HTTPS
+		SameSite: http.SameSiteNoneMode, // Required for cross-domain
 		Path:     "/",
 	})
 
