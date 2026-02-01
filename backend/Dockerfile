@@ -20,7 +20,7 @@ WORKDIR /root/
 
 # Copy the binary from the builder stage
 COPY --from=builder /app/server .
-COPY --from=builder /app/.env.example ./.env
+
 
 EXPOSE 8080
 
