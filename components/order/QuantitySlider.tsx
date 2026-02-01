@@ -2,6 +2,7 @@
 import React, { useRef, useMemo, useState, useEffect } from "react";
 import { useCurrency } from "@/components/layout/CurrencyProvider";
 import { lightImpact, selectionTick, isMobileDevice } from "@/lib/haptics";
+import Image from "next/image";
 
 interface QuantitySliderProps {
   min?: number;
@@ -14,7 +15,13 @@ interface QuantitySliderProps {
   onOrder?: () => Promise<void> | void;
   ordering?: boolean;
   orderStatus?: string | null;
+  // Comment props
+  comments?: string[];
+  setComments?: (c: string[]) => void;
+  showComments?: boolean;
 }
+
+import CommentInput from "./CommentInput";
 
 const QuantitySlider: React.FC<QuantitySliderProps> = ({
   min = 50,
@@ -26,6 +33,9 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
   onOrder,
   ordering,
   orderStatus,
+  comments = [],
+  setComments,
+  showComments = false,
 }) => {
   const { formatMoneyCompact, convert, currency, usdToInr, convertToUsd } = useCurrency();
   const [quantity, setQuantity] = useState<number>(1000);
@@ -189,69 +199,82 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
       </div>
 
       <div className="sliderInfo">
-        {mode === 'qty' ? (
-          <div className="sliderQuantity">
-            <input
-              type="text"
-              name="quantity"
-              className="value"
-              value={isEditing ? editingValue : formatCompact(quantity)}
-              onFocus={() => {
-                setIsEditing(true);
-                setEditingValue(String(quantity));
-              }}
-              onChange={(e) => {
-                const digitsOnly = e.target.value.replace(/[^\d]/g, "");
-                setEditingValue(digitsOnly);
-              }}
-              onBlur={() => {
-                const parsed = parseInt(editingValue || String(min), 10);
-                const clamped = Math.min(max, Math.max(min, isNaN(parsed) ? min : parsed));
-                const snapped = snapToStep(clamped);
-                setQuantity(snapped);
-                onChange?.(snapped);
-                setIsEditing(false);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-              }}
-              readOnly={isFixed}
-            />
-            <span className="label">quantity</span>
-          </div>
-        ) : (
-          <div className="sliderQuantity budgetBox">
-            <span className="currency-symbol">{currencySymbol}</span>
-            <input
-              type="text"
-              name="budget"
-              className="value"
-              value={budgetEditing ? budgetValue : String(Math.round(convert(totalPriceNumberUsd)))}
-              onFocus={() => {
-                setBudgetEditing(true);
-                setBudgetValue(String(Math.round(convert(totalPriceNumberUsd))));
-              }}
-              onChange={(e) => {
-                const digitsOnly = e.target.value.replace(/[^\d]/g, "");
-                setBudgetValue(digitsOnly);
-              }}
-              onBlur={() => {
-                const nActive = parseFloat(budgetValue || '0');
-                const budgetUsd = convertToUsd(nActive);
-                const q = Math.floor(budgetUsd / pricePerUnit);
-                const snapped = snapToStep(Math.max(min, Math.min(max, isFinite(q) ? q : min)));
-                setQuantity(snapped);
-                onChange?.(snapped);
-                setBudgetEditing(false);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-              }}
-              readOnly={isFixed}
-            />
-            <span className="label">amount</span>
-          </div>
-        )}
+        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '6px' }}>
+          {mode === 'qty' ? (
+            <div className="sliderQuantity">
+              <input
+                type="text"
+                name="quantity"
+                className="value"
+                value={isEditing ? editingValue : formatCompact(quantity)}
+                onFocus={() => {
+                  setIsEditing(true);
+                  setEditingValue(String(quantity));
+                }}
+                onChange={(e) => {
+                  const digitsOnly = e.target.value.replace(/[^\d]/g, "");
+                  setEditingValue(digitsOnly);
+                }}
+                onBlur={() => {
+                  const parsed = parseInt(editingValue || String(min), 10);
+                  const clamped = Math.min(max, Math.max(min, isNaN(parsed) ? min : parsed));
+                  const snapped = snapToStep(clamped);
+                  setQuantity(snapped);
+                  onChange?.(snapped);
+                  setIsEditing(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                }}
+                readOnly={isFixed}
+              />
+              <span className="label">quantity</span>
+            </div>
+          ) : (
+            <div className="sliderQuantity budgetBox">
+              <span className="currency-symbol">{currencySymbol}</span>
+              <input
+                type="text"
+                name="budget"
+                className="value"
+                value={budgetEditing ? budgetValue : String(Math.round(convert(totalPriceNumberUsd)))}
+                onFocus={() => {
+                  setBudgetEditing(true);
+                  setBudgetValue(String(Math.round(convert(totalPriceNumberUsd))));
+                }}
+                onChange={(e) => {
+                  const digitsOnly = e.target.value.replace(/[^\d]/g, "");
+                  setBudgetValue(digitsOnly);
+                }}
+                onBlur={() => {
+                  const nActive = parseFloat(budgetValue || '0');
+                  const budgetUsd = convertToUsd(nActive);
+                  const q = Math.floor(budgetUsd / pricePerUnit);
+                  const snapped = snapToStep(Math.max(min, Math.min(max, isFinite(q) ? q : min)));
+                  setQuantity(snapped);
+                  onChange?.(snapped);
+                  setBudgetEditing(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                }}
+                readOnly={isFixed}
+              />
+              <span className="label">amount</span>
+            </div>
+          )}
+
+          <button
+            className="switch-btn"
+            onClick={() => {
+              setMode(mode === 'qty' ? 'amount' : 'qty');
+              if (isMobile) lightImpact();
+            }}
+            aria-label="Toggle input mode"
+          >
+            <Image src="/switch.png" alt="Switch" width={24} height={24} />
+          </button>
+        </div>
 
         <div className="info-container">
           <div className="slider-info">
@@ -273,28 +296,17 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
         </div>
       </div>
 
-      <div className="modeSwitch" role="tablist" aria-label="Quantity or amount">
-        <button
-          role="tab"
-          aria-selected={mode === 'qty'}
-          className={`pill ${mode === 'qty' ? 'active' : ''}`}
-          onClick={() => setMode('qty')}
-        >
-          Quantity
-        </button>
-        <button
-          role="tab"
-          aria-selected={mode === 'amount'}
-          className={`pill ${mode === 'amount' ? 'active' : ''}`}
-          onClick={() => setMode('amount')}
-        >
-          Amount
-        </button>
-      </div>
+      {showComments && setComments && (
+        <CommentInput
+          targetQuantity={quantity}
+          comments={comments}
+          setComments={setComments}
+        />
+      )}
 
       {/* Order button injected here as requested */}
       {typeof onOrder === 'function' && (
-        <div className="order-actions">
+        <div className="order-actions" style={{ marginTop: '-10px' }}>
           <button
             className="btn-order"
             onClick={() => { if (!ordering) onOrder(); }}

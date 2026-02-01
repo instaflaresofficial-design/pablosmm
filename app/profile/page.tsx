@@ -1,40 +1,65 @@
+"use client";
+
 import Image from 'next/image'
 import Link from 'next/link'
-import { getServerSession } from 'next-auth'
-import authOptions from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
+import { useAuth } from '@/components/providers/auth-provider';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 
-export default async function Page() {
-  const session = await getServerSession(authOptions as any) as any;
-  if (!session?.user?.email) {
-    // show a minimal unauthenticated view
+export default function Page() {
+  const { user, logout, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
+
+  if (loading) {
     return (
-      <div className='profile-page'>
-        <p>Please sign in to view your profile. <Link href="/auth/login">Sign in</Link></p>
+      <div className="flex h-screen items-center justify-center bg-black text-white">
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
 
-  const email = session.user.email;
-  const user = await prisma.user.findUnique({ where: { email }, include: { wallet: true } });
+  if (!user) return null; // Logic handled by useEffect
 
-  const displayName = user?.name || session.user.name || email.split('@')[0];
-  const walletBalance = ((user?.wallet?.balance ?? 0) / 100).toFixed(2);
+  // Helper to format currency (assuming user.balance is already float in USD or whatever, logic says defaults to INR in UI?)
+  // The backend sends balance as float.
+  const walletBalance = user.balance.toFixed(2);
+  const totalSpend = (user.totalSpend !== undefined && user.totalSpend !== null) ? user.totalSpend.toFixed(2) : "0.00";
+  const completedOrders = (user.orderCount !== undefined && user.orderCount !== null) ? user.orderCount : 0;
+
+  const displayName = user.name || user.username || user.email.split('@')[0];
+  const avatarUrl = user.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${displayName}`;
 
   return (
     <div className='profile-page'>
       <div className="user-container">
-        <Image className='profile-img' src="/profile/profile.png" alt="User" width={100} height={100} />
+        <img
+          className='profile-img'
+          src={avatarUrl}
+          alt="User"
+          width={100}
+          height={100}
+          style={{ borderRadius: '50%' }}
+        />
+
         <div className="text-container">
           <div className="user-info-container">
             <div className="username">
               <h3>{displayName}</h3>
               <Link href="/profile/edit" className="edit-link"><Image src="/profile/edit.png" alt="Edit" width={20} height={20} /></Link>
             </div>
-            <p className="user-email">{email}</p>
+            <p className="user-email">{user.email}</p>
           </div>
 
-            <Link className='signout' href="/logout">Sign Out <Image src="/profile/sign-out.png" alt="Sign Out" width={20} height={20} /></Link>
+          <button className='signout' onClick={() => logout()} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#ff5f5f' }}>
+            Sign Out <Image src="/profile/sign-out.png" alt="Sign Out" width={20} height={20} />
+          </button>
         </div>
       </div>
       <div className="profile-container">
@@ -44,32 +69,30 @@ export default async function Page() {
             <div className="top-container">
               <div className="balance-container">
                 <p className="balance-label">Wallet Balance</p>
-                <p className="balance-amount">${walletBalance}</p>
+                <p className="balance-amount">₹{walletBalance}</p>
               </div>
-              <select className="currency-select" defaultValue="INR">
-                <option value="USD">USD</option>
-                <option value="INR">INR</option>
-              </select>
+              {/* Currency Select Placeholder - can be functional later */}
+              {/* <div className="currency-badge">INR</div> */}
             </div>
             <div className="bottom-container">
               <div className="stats">
                 <p>Total Spend</p>
-                <span>—</span>
+                <span>₹{totalSpend}</span>
               </div>
               <div className="stats">
                 <p>Completed Orders</p>
-                <span>—</span>
+                <span>{completedOrders}</span>
               </div>
             </div>
           </div>
           <div className="stats-container">
             <div className="stat">
               <p className="stat-label">Active Orders</p>
-              <p className="stat-value">—</p>
+              <p className="stat-value">0</p>
             </div>
             <div className="stat">
               <p className="stat-label">Failed/Refunded Orders</p>
-              <p className="stat-value">—</p>
+              <p className="stat-value">0</p>
             </div>
           </div>
         </div>

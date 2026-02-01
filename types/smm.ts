@@ -21,6 +21,8 @@ export interface NormalizedSmmService {
 	providerCurrency?: 'USD' | 'INR';
 	// Optional admin display name override
 	displayName?: string;
+	displayDescription?: string;
+	displayId?: string;
 	min: number;
 	max: number;
 	refill: boolean;
@@ -28,5 +30,9 @@ export interface NormalizedSmmService {
 	cancel: boolean;
 	averageTime: number | null;
 	raw?: unknown; // full provider payload for debugging
+	targeting?: string;
+	quality?: string;
+	stability?: string;
+	tags?: string[];
 }
 

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./style.css";
 import { CurrencyProvider } from "@/components/layout/CurrencyProvider";
 import RootShell from "@/components/layout/RootShell";
+import { AuthProvider } from "@/components/providers/auth-provider";
+import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -20,7 +22,10 @@ export default function RootLayout({
       </head>
       <body>
         <CurrencyProvider>
-          <RootShell>{children}</RootShell>
+          <AuthProvider>
+            <RootShell>{children}</RootShell>
+            <Toaster richColors position="bottom-center" />
+          </AuthProvider>
         </CurrencyProvider>
       </body>
     </html>

@@ -1,5 +1,6 @@
 "use client";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { getApiBaseUrl } from '@/lib/config';
 
 export type Currency = 'USD' | 'INR';
 
@@ -21,7 +22,7 @@ type Ctx = {
 const CurrencyContext = createContext<Ctx | null>(null);
 
 const STORAGE_KEY = 'app:currency';
-const DEFAULT_CURRENCY: Currency = 'USD';
+const DEFAULT_CURRENCY: Currency = 'INR';
 const DEFAULT_USD_TO_INR = 83.0; // simple static rate; can be made dynamic later
 
 function compact(n: number): string {
@@ -37,8 +38,10 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY) as Currency | null;
-      if (saved === 'USD' || saved === 'INR') setCurrencyState(saved);
-    } catch {}
+      if (saved === 'USD' || saved === 'INR') {
+        setCurrencyState(saved);
+      }
+    } catch { }
   }, []);
 
   // Fetch live USD -> INR rate on mount and refresh every 10 minutes
@@ -47,9 +50,9 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     const fetchRate = async () => {
       try {
         // Prefer server-side FX endpoint so client and server use the same source/fallbacks
-        const res = await fetch('/api/fx');
+        const res = await fetch(`${getApiBaseUrl()}/fx`);
         const j = await res.json();
-        const rate = j?.usdToInr ?? j?.rates?.INR;
+        const rate = j?.usd_to_inr;
         // Validate server-provided rate to avoid bogus scraped values
         if (mounted && typeof rate === 'number' && isFinite(rate) && rate > 0 && rate > 10 && rate < 1000) {
           setUsdToInr(rate);
@@ -76,7 +79,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
 
   const setCurrency = useCallback((c: Currency) => {
     setCurrencyState(c);
-    try { localStorage.setItem(STORAGE_KEY, c); } catch {}
+    try { localStorage.setItem(STORAGE_KEY, c); } catch { }
   }, []);
 
   const convert = useCallback((amountUsd: number) => {
@@ -91,10 +94,10 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const formatMoney = useCallback((amountUsd: number) => {
     const n = convert(amountUsd);
     if (currency === 'INR') {
-      try { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n); } catch {}
+      try { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n); } catch { }
       return `₹${n.toFixed(2)}`;
     }
-    try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n); } catch {}
+    try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n); } catch { }
     return `$${n.toFixed(2)}`;
   }, [convert, currency]);
 

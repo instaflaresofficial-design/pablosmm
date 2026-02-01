@@ -1,38 +1,30 @@
-import { PrismaAdapter } from '@next-auth/prisma-adapter'
 import GoogleProvider from 'next-auth/providers/google'
 import { NextAuthOptions } from 'next-auth'
-import { prisma } from './prisma'
 
 export function getAuthOptions(): NextAuthOptions {
   return {
-    adapter: PrismaAdapter(prisma as any),
     providers: [
       GoogleProvider({
         clientId: process.env.GOOGLE_CLIENT_ID || '',
         clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
       }),
     ],
-    session: { strategy: 'database' },
+    session: { strategy: 'jwt' },
     callbacks: {
-      async session({ session, user }: { session: any; user: any }) {
+      async jwt({ token, user }: { token: any; user: any }) {
+        if (user) {
+          token.id = user.id
+          token.role = user.role ?? 'user'
+        }
+        return token
+      },
+      async session({ session, token }: { session: any; token: any }) {
         if (session.user) {
-          session.user.id = String(user.id)
-          session.user.role = user.role ?? 'user'
+          session.user.id = token.id
+          session.user.role = token.role ?? 'user'
         }
         return session
       },
-    },
-    events: {
-      async createUser({ user }) {
-        try {
-          // Ensure a wallet exists for new users
-          await prisma.wallet.create({ data: { userId: Number(user.id), balance: 0 } });
-        } catch (e) {
-          // ignore if wallet already exists or other issues
-          // eslint-disable-next-line no-console
-          console.warn('createUser event wallet creation failed', String(e));
-        }
-      }
     },
     pages: {
       signIn: '/auth/login',

@@ -8,11 +8,31 @@ type Props = {
   metric?: ServiceType | string
   metricCount?: number
   username?: string
+  imageUrl?: string
+  isLoading?: boolean
 }
 
-const PostPreview: React.FC<Props> = ({ metric = 'likes', metricCount = 120, username = 'example_post' }) => {
+const PostPreview: React.FC<Props> = ({ metric = 'likes', metricCount = 120, username = 'example_post', imageUrl, isLoading }) => {
   const prevRef = useRef<number>(0);
   useEffect(() => { prevRef.current = metricCount; }, [metricCount]);
+
+  if (isLoading) {
+    return (
+      <div className='preview post'>
+        <div className='post-image skeleton-pulse' style={{ background: '#1a1a1a' }} />
+        <div className="post-details">
+          <div className="left" style={{ gap: 10 }}>
+            <div className="skeleton-pulse" style={{ width: 40, height: 20, borderRadius: 4, background: '#1a1a1a' }} />
+            <div className="skeleton-pulse" style={{ width: 40, height: 20, borderRadius: 4, background: '#1a1a1a' }} />
+            <div className="skeleton-pulse" style={{ width: 40, height: 20, borderRadius: 4, background: '#1a1a1a' }} />
+          </div>
+          <div className="right" style={{ gap: 10 }}>
+            <div className="skeleton-pulse" style={{ width: 40, height: 20, borderRadius: 4, background: '#1a1a1a' }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const renderCount = (forMetric: string) => {
     const m = String(metric).toLowerCase();
@@ -24,20 +44,33 @@ const PostPreview: React.FC<Props> = ({ metric = 'likes', metricCount = 120, use
 
   return (
     <div className='preview post'>
-        <div className='post-image'>
-          <Image src='/bg.png' alt='Post Image' width={300} height={300} />
+      <div className='post-image'>
+        <Image
+          src={imageUrl || '/bg.png'}
+          alt='Background'
+          fill
+          className='blur-bg'
+          priority
+        />
+        <Image
+          src={imageUrl || '/bg.png'}
+          alt='Post Image'
+          width={300}
+          height={300}
+          className='main-image'
+        />
+      </div>
+      <div className="post-details">
+        <div className="left">
+          <div className="icon"><Image src='/preview/like.svg' alt='Like' width={20} height={20} className='like' />{renderCount('likes')}</div>
+          <div className="icon"><Image src='/preview/comment.svg' alt='Comment' width={20} height={20} className='comment' />{renderCount('comments')}</div>
+          <div className="icon"><Image src='/preview/share.svg' alt='Share' width={20} height={20} className='share' />{renderCount('shares')}</div>
         </div>
-        <div className="post-details">
-            <div className="left">
-                <div className="icon"><Image src='/preview/like.svg' alt='Like' width={20} height={20} className='like' />{renderCount('likes')}</div>
-                <div className="icon"><Image src='/preview/comment.svg' alt='Comment' width={20} height={20} className='comment' />{renderCount('comments')}</div>
-                <div className="icon"><Image src='/preview/share.svg' alt='Share' width={20} height={20} className='share' />{renderCount('shares')}</div>
-            </div>
-            <div className="right">
-                <div className="icon"><Image src='/preview/save.svg' alt='Save' width={20} height={20} className='save' />{renderCount('saves')}</div>
-                <div className="icon"><Image src='/preview/views.png' alt='views' width={20} height={20} className='views' />{renderCount('views')}</div>
-            </div>
+        <div className="right">
+          <div className="icon"><Image src='/preview/save.svg' alt='Save' width={20} height={20} className='save' />{renderCount('saves')}</div>
+          <div className="icon"><Image src='/preview/views.png' alt='views' width={20} height={20} className='views' />{renderCount('views')}</div>
         </div>
+      </div>
     </div>
   )
 }

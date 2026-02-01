@@ -1,0 +1,1 @@
+ALTER TABLE service_overrides ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}';

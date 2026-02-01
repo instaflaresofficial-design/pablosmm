@@ -15,7 +15,6 @@ export default function RootShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <div className="root">
-        <CurrencyStrip />
         <HeaderSwitch />
         {children}
       </div>

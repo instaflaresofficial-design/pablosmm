@@ -7,6 +7,7 @@ const SearchContainer: React.FC<SearchProps> = ({ value = '', onChange }) => {
   return (
     <div className="search-container">
       <div className="search-wrapper">
+        <div className="btn-glow" />
         <input
           type="text"
           name="search"

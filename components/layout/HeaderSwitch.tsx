@@ -3,14 +3,9 @@
 import { usePathname } from "next/navigation";
 import Header from "@/components/layout/Header";
 
+// Header should be visible on all user pages, except profile/wallet
 export default function HeaderSwitch() {
-  const p = usePathname();
-  const hide =
-    p === "/wallet" ||
-    p.startsWith("/wallet/") ||
-    p === "/profile" ||
-    p.startsWith("/profile/");
-
-  if (hide) return null;
+  const pathname = usePathname();
+  if (pathname.startsWith('/profile') || pathname.startsWith('/wallet')) return null;
   return <Header />;
 }

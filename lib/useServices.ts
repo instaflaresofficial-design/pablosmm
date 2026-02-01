@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from 'react';
+import { getApiBaseUrl } from './config';
 import type { NormalizedSmmService } from '@/types/smm';
 
 let cache: { services: NormalizedSmmService[] } | null = null;
@@ -18,7 +19,7 @@ export function useNormalizedServices() {
         setLoading(true);
         const p =
           inflight ||
-          (inflight = fetch('/api/services', { cache: 'no-store' })
+          (inflight = fetch(`${getApiBaseUrl()}/services`, { cache: 'no-store' })
             .then((r) => {
               if (!r.ok) throw new Error(`HTTP ${r.status}`);
               return r.json();
@@ -36,7 +37,7 @@ export function useNormalizedServices() {
         if (mounted.current) setLoading(false);
       }
     }
-    if (!cache) load();
+    load();
     return () => {
       mounted.current = false;
     };
