@@ -438,6 +438,18 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 			continue
 		}
 
+		// AUTO-GENERATE Display ID if not set by override
+		if displayID == "" {
+			serviceIDInt := 0
+			fmt.Sscanf(raw.Service.String(), "%d", &serviceIDInt)
+			displayID = fmt.Sprintf("%04d", (serviceIDInt*7919)%10000)
+		}
+
+		// AUTO-SET App Category if not manually overridden
+		if category == raw.Category || category == "" {
+			category = fmt.Sprintf("%s %s", strings.Title(platform), strings.Title(serviceType))
+		}
+
 		// Finalize Boolean Flags
 		finalRefill := toBool(raw.Refill)
 		if overrideRefill != nil {
