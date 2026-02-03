@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -13,6 +14,10 @@ import (
 )
 
 // RefundOrder refunds an order manually
+func (h *Handler) RefundOrder(w http.ResponseWriter, r *http.Request) {
+	orderIDStr := chi.URLParam(r, "id")
+	orderID, _ := strconv.Atoi(orderIDStr)
+
 	// Parse optional body for partial refund
 	var req struct {
 		Amount float64 `json:"amount"` // Optional amount to refund
@@ -100,15 +105,15 @@ import (
 	if newRefundedTotal >= amountCents {
 		newStatus = "refunded"
 	} else if status != "refunded" && status != "canceled" {
-		// Keep existing status if partial, or maybe mark 'partial_refunded'? 
+		// Keep existing status if partial, or maybe mark 'partial_refunded'?
 		// For now keep original status (e.g. 'completed' or 'processing') unless fully refunded.
 	}
 
 	var providerOrderID *string
-	err = tx.QueryRow(context.Background(), 
-		"UPDATE orders SET status = $1, refunded_amount = $2 WHERE id = $3 RETURNING provider_order_id", 
+	err = tx.QueryRow(context.Background(),
+		"UPDATE orders SET status = $1, refunded_amount = $2 WHERE id = $3 RETURNING provider_order_id",
 		newStatus, newRefundedTotal, orderID).Scan(&providerOrderID)
-	
+
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -139,7 +144,7 @@ import (
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"status": "success", 
+		"status":  "success",
 		"message": fmt.Sprintf("Refunded %.2f successfully", float64(refundAmountCents)/100.0),
 	})
 }
