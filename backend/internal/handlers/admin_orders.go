@@ -13,9 +13,12 @@ import (
 )
 
 // RefundOrder refunds an order manually
-func (h *Handler) RefundOrder(w http.ResponseWriter, r *http.Request) {
-	orderIDStr := chi.URLParam(r, "id")
-	orderID, _ := strconv.Atoi(orderIDStr)
+	// Parse optional body for partial refund
+	var req struct {
+		Amount float64 `json:"amount"` // Optional amount to refund
+	}
+	// Ignore error if body is empty (full refund default)
+	_ = json.NewDecoder(r.Body).Decode(&req)
 
 	// Transaction
 	tx, err := h.db.Pool.Begin(context.Background())
@@ -25,13 +28,14 @@ func (h *Handler) RefundOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(context.Background())
 
-	// 1. Get current status and amount
+	// 1. Get current status, amount, and already refunded amount
 	var status string
 	var amountCents int
+	var refundedCents int
 	var userID int
 	err = tx.QueryRow(context.Background(),
-		"SELECT status, amount_cents, user_id FROM orders WHERE id = $1 FOR UPDATE", orderID).
-		Scan(&status, &amountCents, &userID)
+		"SELECT status, amount_cents, COALESCE(refunded_amount, 0), user_id FROM orders WHERE id = $1 FOR UPDATE", orderID).
+		Scan(&status, &amountCents, &refundedCents, &userID)
 
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -40,15 +44,32 @@ func (h *Handler) RefundOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if status == "canceled" || status == "refunded" || status == "failed" {
+	// Calculate remaining refundable amount
+	remainingCents := amountCents - refundedCents
+	if remainingCents <= 0 {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Order already refunded or canceled"})
+		json.NewEncoder(w).Encode(map[string]string{"error": "Order is already fully refunded"})
 		return
 	}
 
+	// Build Refund Amount
+	refundAmountCents := remainingCents // Default to full remaining
+	isPartial := false
+
+	if req.Amount > 0 {
+		reqCents := int(req.Amount * 100)
+		if reqCents < remainingCents {
+			refundAmountCents = reqCents
+			isPartial = true
+		} else if reqCents > remainingCents {
+			// Cap at remaining
+			refundAmountCents = remainingCents
+		}
+	}
+
 	// 2. Credit Wallet
-	_, err = tx.Exec(context.Background(), "UPDATE wallets SET balance = balance + $1 WHERE user_id = $2", amountCents, userID)
+	_, err = tx.Exec(context.Background(), "UPDATE wallets SET balance = balance + $1, updated_at = NOW() WHERE user_id = $2", refundAmountCents, userID)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -56,9 +77,38 @@ func (h *Handler) RefundOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. Mark Refunded
+	// 3. Log Transaction
+	desc := fmt.Sprintf("Refund for Order #%d", orderID)
+	if isPartial {
+		desc = fmt.Sprintf("Partial Refund for Order #%d", orderID)
+	}
+	_, err = tx.Exec(context.Background(), `
+		INSERT INTO transactions (user_id, amount, type, description)
+		VALUES ($1, $2, 'credit', $3)
+	`, userID, float64(refundAmountCents)/100.0, desc)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to log transaction"})
+		return
+	}
+
+	// 4. Update Order
+	// Update refunded_amount. Only mark 'refunded' if fully refunded.
+	newRefundedTotal := refundedCents + refundAmountCents
+	newStatus := status
+	if newRefundedTotal >= amountCents {
+		newStatus = "refunded"
+	} else if status != "refunded" && status != "canceled" {
+		// Keep existing status if partial, or maybe mark 'partial_refunded'? 
+		// For now keep original status (e.g. 'completed' or 'processing') unless fully refunded.
+	}
+
 	var providerOrderID *string
-	err = tx.QueryRow(context.Background(), "UPDATE orders SET status = 'refunded' WHERE id = $1 RETURNING provider_order_id", orderID).Scan(&providerOrderID)
+	err = tx.QueryRow(context.Background(), 
+		"UPDATE orders SET status = $1, refunded_amount = $2 WHERE id = $3 RETURNING provider_order_id", 
+		newStatus, newRefundedTotal, orderID).Scan(&providerOrderID)
+	
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -73,8 +123,9 @@ func (h *Handler) RefundOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 4. Try to cancel on provider side (Best effort)
-	if providerOrderID != nil && *providerOrderID != "" {
+	// 5. Provider Cancellation (Only on Full Refund/Cancellation)
+	// Only attempt if fully refunded and status changed to refunded
+	if newStatus == "refunded" && providerOrderID != nil && *providerOrderID != "" {
 		go func(pID string) {
 			log.Printf("Attempting to cancel Order #%s on provider side...", pID)
 			resp, err := h.smm.CancelOrder(pID)
@@ -87,7 +138,10 @@ func (h *Handler) RefundOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Refunded successfully and cancellation requested from provider"})
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": "success", 
+		"message": fmt.Sprintf("Refunded %.2f successfully", float64(refundAmountCents)/100.0),
+	})
 }
 
 // GetAdminOrders lists all orders for admin

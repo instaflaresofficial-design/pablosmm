@@ -98,6 +98,30 @@ func (h *Handler) GetProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fetch detailed order stats
+	var stats struct {
+		Active    int `json:"active"`
+		Completed int `json:"completed"`
+		Failed    int `json:"failed"`
+	}
+
+	// Active: pending, processing, submitted, in_progress, active
+	// Completed: completed, partial
+	// Failed: canceled, failed, refunded
+	err = h.db.Pool.QueryRow(context.Background(), `
+		SELECT 
+			COUNT(*) FILTER (WHERE status IN ('pending', 'processing', 'submitted', 'in_progress', 'active')) as active_count,
+			COUNT(*) FILTER (WHERE status IN ('completed', 'partial')) as completed_count,
+			COUNT(*) FILTER (WHERE status IN ('canceled', 'failed', 'refunded')) as failed_count
+		FROM orders 
+		WHERE user_id = $1
+	`, user.ID).Scan(&stats.Active, &stats.Completed, &stats.Failed)
+
+	if err != nil {
+		log.Printf("Failed to fetch order stats for user %d: %v", user.ID, err)
+		// Don't fail the written response, just zero stats
+	}
+
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"id":    user.ID,
 		"name":  user.Name,
@@ -106,6 +130,7 @@ func (h *Handler) GetProfile(w http.ResponseWriter, r *http.Request) {
 		"wallet": map[string]interface{}{
 			"balance": wallet.Balance,
 		},
+		"stats": stats,
 	})
 }
 

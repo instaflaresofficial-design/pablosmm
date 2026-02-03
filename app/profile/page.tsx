@@ -31,7 +31,10 @@ export default function Page() {
   // The backend sends balance as float.
   const walletBalance = user.balance.toFixed(2);
   const totalSpend = (user.totalSpend !== undefined && user.totalSpend !== null) ? user.totalSpend.toFixed(2) : "0.00";
-  const completedOrders = (user.orderCount !== undefined && user.orderCount !== null) ? user.orderCount : 0;
+  // Fallback to orderCount if stats undefined (old backend)
+  const completedOrders = user.stats?.completed !== undefined ? user.stats.completed : (user.orderCount || 0);
+  const activeOrders = user.stats?.active || 0;
+  const failedOrders = user.stats?.failed || 0;
 
   const displayName = user.name || user.username || user.email.split('@')[0];
   const avatarUrl = user.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${displayName}`;
@@ -88,11 +91,11 @@ export default function Page() {
           <div className="stats-container">
             <div className="stat">
               <p className="stat-label">Active Orders</p>
-              <p className="stat-value">0</p>
+              <p className="stat-value">{activeOrders}</p>
             </div>
             <div className="stat">
               <p className="stat-label">Failed/Refunded Orders</p>
-              <p className="stat-value">0</p>
+              <p className="stat-value">{failedOrders}</p>
             </div>
           </div>
         </div>
