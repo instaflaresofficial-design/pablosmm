@@ -231,8 +231,41 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	u.TotalSpend = float64(totalSpendCents) / 100.0
 	u.CreatedAt = fmt.Sprintf("%v", createdAtTime)
 
+	// Fetch detailed order stats (same as GetProfile)
+	var stats struct {
+		Active    int `json:"active"`
+		Completed int `json:"completed"`
+		Failed    int `json:"failed"`
+	}
+
+	err = h.db.Pool.QueryRow(context.Background(), `
+		SELECT 
+			COUNT(*) FILTER (WHERE status IN ('pending', 'processing', 'submitted', 'in_progress', 'active')) as active_count,
+			COUNT(*) FILTER (WHERE status IN ('completed', 'partial')) as completed_count,
+			COUNT(*) FILTER (WHERE status IN ('canceled', 'failed', 'refunded')) as failed_count
+		FROM orders 
+		WHERE user_id = $1
+	`, userID).Scan(&stats.Active, &stats.Completed, &stats.Failed)
+
+	if err != nil {
+		log.Printf("Failed to fetch order stats for user %d: %v", userID, err)
+		// Don't fail the response, just zero stats
+	}
+
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"user": u,
+		"user": map[string]interface{}{
+			"id":         u.ID,
+			"name":       u.Name,
+			"username":   u.Username,
+			"email":      u.Email,
+			"mobile":     u.Mobile,
+			"role":       u.Role,
+			"balance":    u.Balance,
+			"totalSpend": u.TotalSpend,
+			"orderCount": u.OrderCount,
+			"avatar_url": u.AvatarURL,
+			"stats":      stats,
+		},
 	})
 }
 
@@ -333,7 +366,8 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set Cookie with production-safe settings
-	http.SetCookie(w, &http.Cookie{
+	// Set Cookie with production-safe settings
+	cookie := &http.Cookie{
 		Name:     "auth_token",
 		Value:    tokenString,
 		Expires:  expirationTime,
@@ -341,7 +375,14 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		Secure:   true,                  // Required for HTTPS
 		SameSite: http.SameSiteNoneMode, // Required for cross-domain
 		Path:     "/",
-	})
+	}
+
+	// If we are on production, set the Domain to .pablosmm.com to allow sharing between api. and root
+	if strings.Contains(os.Getenv("FRONTEND_URL"), "pablosmm.com") {
+		cookie.Domain = ".pablosmm.com"
+	}
+
+	http.SetCookie(w, cookie)
 
 	// Redirect to frontend profile
 	frontendURL := os.Getenv("FRONTEND_URL")
