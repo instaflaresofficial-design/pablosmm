@@ -99,7 +99,7 @@ export function OrderDetailsDialog({ order, open, onOpenChange, onSuccess }: Ord
                     {/* Only show refund if not already refunded/failed/cancelled? Or maybe always allow override? 
                         Safe to show for active/completed/submitted. 
                     */}
-                    {(order.status !== 'canceled' && order.status !== 'failed') && (
+                    {(order.status !== 'canceled' && order.status !== 'failed' && order.status !== 'refunded') && (
                         <Button variant="destructive" onClick={handleRefund} disabled={refunding} className="w-full sm:w-auto">
                             {refunding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Refund Order

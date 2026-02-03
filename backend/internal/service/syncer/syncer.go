@@ -102,10 +102,12 @@ func (s *OrderSyncer) SyncOrders(ctx context.Context) {
 				if pStatus != "" {
 					localStatus := mapProviderStatus(pStatus)
 
+					// CRITICAL: Do NOT overwrite refunded or canceled orders
+					// These are terminal states set manually by admins
 					_, err := s.db.Pool.Exec(ctx, `
 						UPDATE orders 
-						SET status = $1, remains = $2, start_count = $3, updated_at = NOW() 
-						WHERE id = $4
+						SET status = $1, remains = $2, start_count = $3 
+						WHERE id = $4 AND status NOT IN ('refunded', 'canceled')
 					`, localStatus, remains, startCount, localID)
 
 					if err != nil {
