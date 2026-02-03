@@ -286,7 +286,7 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 		if s.cfg.SmmCurrency == "INR" && baseRatePer1000 > 0 {
 			baseRatePer1000 = baseRatePer1000 / s.fx.GetUsdToInr()
 		}
-		ratePer1000 := baseRatePer1000
+		ratePer1000 := baseRatePer1000 * 2.5 // Default 2.5x multiplier (150% profit)
 
 		// Apply Overrides
 		displayName := ""
