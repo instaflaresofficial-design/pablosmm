@@ -124,18 +124,23 @@ func (h *Handler) GetProfile(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		log.Printf("Failed to fetch order stats for user %d: %v", user.ID, err)
-		// Don't fail the written response, just zero stats
+		// Don't fail the response, just zero stats
 	}
 
+	// Fetch total spend as well
+	var totalSpendCents int
+	h.db.Pool.QueryRow(context.Background(), "SELECT COALESCE(SUM(amount_cents), 0) FROM orders WHERE user_id = $1", user.ID).Scan(&totalSpendCents)
+
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"id":    user.ID,
-		"name":  user.Name,
-		"email": user.Email,
-		"role":  user.Role,
-		"wallet": map[string]interface{}{
-			"balance": wallet.Balance,
+		"user": map[string]interface{}{
+			"id":         user.ID,
+			"name":       user.Name,
+			"email":      user.Email,
+			"role":       user.Role,
+			"balance":    float64(wallet.Balance) / 100.0,
+			"totalSpend": float64(totalSpendCents) / 100.0,
+			"stats":      stats,
 		},
-		"stats": stats,
 	})
 }
 

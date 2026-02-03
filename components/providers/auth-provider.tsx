@@ -17,6 +17,11 @@ export interface User {
     avatar_url?: string;
     totalSpend: number;
     orderCount: number;
+    stats?: {
+        active: number;
+        completed: number;
+        failed: number;
+    };
 }
 
 interface AuthContextType {

@@ -31,7 +31,9 @@ export default function Home() {
   const balance = user ? `₹${user.balance.toFixed(2)}` : "—";
 
   // Stats
-  const completedOrders = (user.orderCount !== undefined) ? user.orderCount : 0;
+  const completedOrders = user.stats?.completed !== undefined ? user.stats.completed : (user.orderCount || 0);
+  const activeOrders = user.stats?.active || 0;
+  const failedOrders = user.stats?.failed || 0;
   const totalSpend = (user.totalSpend !== undefined) ? `₹${user.totalSpend.toFixed(2)}` : "₹0.00";
 
   return (
@@ -52,7 +54,7 @@ export default function Home() {
       <div className="order-stats-container">
         <div className="stat-card">
           <p className="stat-label">Active Orders</p>
-          <p className="stat-value">0</p>
+          <p className="stat-value">{activeOrders}</p>
         </div>
         <div className="stat-card">
           <p className="stat-label">Completed Orders</p>
@@ -60,7 +62,7 @@ export default function Home() {
         </div>
         <div className="stat-card">
           <p className="stat-label">Failed Orders</p>
-          <p className="stat-value">0</p>
+          <p className="stat-value">{failedOrders}</p>
         </div>
       </div>
       <div className="divider-container">
