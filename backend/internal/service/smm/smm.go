@@ -447,7 +447,7 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 
 		// AUTO-SET App Category if not manually overridden
 		if category == raw.Category || category == "" {
-			category = fmt.Sprintf("%s %s", strings.Title(platform), strings.Title(serviceType))
+			category = serviceType // Use just the type to match frontend dropdown
 		}
 
 		// Finalize Boolean Flags
