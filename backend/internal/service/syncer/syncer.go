@@ -47,7 +47,7 @@ func (s *OrderSyncer) SyncOrders(ctx context.Context) {
 		WHERE status IN ('pending', 'processing', 'submitted', 'in_progress', 'active', 'canceled', 'failed', 'completed', 'refunded') 
 		AND provider_order_id IS NOT NULL 
 		AND provider_order_id != ''
-		AND created_at > NOW() - INTERVAL '1 day'
+		AND created_at > NOW() - INTERVAL '7 days'
 		LIMIT 100
 	`)
 	if err != nil {
