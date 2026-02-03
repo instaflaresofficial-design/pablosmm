@@ -263,7 +263,6 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 			"balance":    u.Balance,
 			"totalSpend": u.TotalSpend,
 			"orderCount": u.OrderCount,
-			"avatar_url": u.AvatarURL,
 			"stats":      stats,
 		},
 	})
