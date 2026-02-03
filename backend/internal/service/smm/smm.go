@@ -213,7 +213,8 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 	} else {
 		defer rows.Close()
 		for rows.Next() {
-			var sid, name, desc string
+			var sid string
+			var name, desc *string
 			var multi float64
 			var hidden bool
 			var cat, pcat, did, stype, targeting, quality, stability *string
@@ -222,8 +223,17 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 			var refill, cancel, dripfeed *bool
 
 			if err := rows.Scan(&sid, &name, &desc, &multi, &hidden, &cat, &tags, &pcat, &count, &did, &refill, &cancel, &dripfeed, &stype, &targeting, &quality, &stability); err != nil {
-				log.Printf("ERROR: Scan service_overrides row failed for SID %s: %v", sid, err)
+				log.Printf("ERROR: Scan service_overrides row failed: %v", err)
 				continue
+			}
+
+			displayName := ""
+			if name != nil {
+				displayName = *name
+			}
+			displayDesc := ""
+			if desc != nil {
+				displayDesc = *desc
 			}
 
 			category := ""
@@ -259,7 +269,7 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 				Targeting        *string
 				Quality          *string
 				Stability        *string
-			}{name, desc, multi, hidden, category, tags, providerCategory, count, displayID, refill, cancel, dripfeed, stype, targeting, quality, stability}
+			}{displayName, displayDesc, multi, hidden, category, tags, providerCategory, count, displayID, refill, cancel, dripfeed, stype, targeting, quality, stability}
 		}
 		log.Printf("DEBUG: Successfully loaded %d overrides from database", len(overrides))
 	}
