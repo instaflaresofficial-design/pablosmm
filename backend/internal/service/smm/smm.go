@@ -208,7 +208,9 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 		refill, cancel, dripfeed, service_type, targeting, quality, stability
 		FROM service_overrides
 	`)
-	if err == nil {
+	if err != nil {
+		log.Printf("ERROR: Query service_overrides failed: %v", err)
+	} else {
 		defer rows.Close()
 		for rows.Next() {
 			var sid, name, desc string
@@ -219,48 +221,47 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 			var count int
 			var refill, cancel, dripfeed *bool
 
-			if err := rows.Scan(&sid, &name, &desc, &multi, &hidden, &cat, &tags, &pcat, &count, &did, &refill, &cancel, &dripfeed, &stype, &targeting, &quality, &stability); err == nil {
-				category := ""
-				if cat != nil {
-					category = *cat
-				}
-				if tags == nil {
-					tags = []string{}
-				}
-				providerCategory := ""
-				if pcat != nil {
-					providerCategory = *pcat
-				}
-				displayID := ""
-				if did != nil {
-					displayID = *did
-				}
-
-				overrides[sid] = struct {
-					DisplayName      string
-					DisplayDesc      string
-					Multiplier       float64
-					IsHidden         bool
-					Category         string
-					Tags             []string
-					ProviderCategory string
-					PurchaseCount    int
-					DisplayID        string
-					Refill           *bool
-					Cancel           *bool
-					Dripfeed         *bool
-					ServiceType      *string
-					Targeting        *string
-					Quality          *string
-					Stability        *string
-				}{name, desc, multi, hidden, category, tags, providerCategory, count, displayID, refill, cancel, dripfeed, stype, targeting, quality, stability}
-			} else {
-				log.Printf("DEBUG: Scan error: %v", err)
+			if err := rows.Scan(&sid, &name, &desc, &multi, &hidden, &cat, &tags, &pcat, &count, &did, &refill, &cancel, &dripfeed, &stype, &targeting, &quality, &stability); err != nil {
+				log.Printf("ERROR: Scan service_overrides row failed for SID %s: %v", sid, err)
+				continue
 			}
+
+			category := ""
+			if cat != nil {
+				category = *cat
+			}
+			if tags == nil {
+				tags = []string{}
+			}
+			providerCategory := ""
+			if pcat != nil {
+				providerCategory = *pcat
+			}
+			displayID := ""
+			if did != nil {
+				displayID = *did
+			}
+
+			overrides[sid] = struct {
+				DisplayName      string
+				DisplayDesc      string
+				Multiplier       float64
+				IsHidden         bool
+				Category         string
+				Tags             []string
+				ProviderCategory string
+				PurchaseCount    int
+				DisplayID        string
+				Refill           *bool
+				Cancel           *bool
+				Dripfeed         *bool
+				ServiceType      *string
+				Targeting        *string
+				Quality          *string
+				Stability        *string
+			}{name, desc, multi, hidden, category, tags, providerCategory, count, displayID, refill, cancel, dripfeed, stype, targeting, quality, stability}
 		}
-		log.Printf("DEBUG: Loaded %d overrides from database", len(overrides))
-	} else {
-		log.Printf("DEBUG: Query overrides error: %v", err)
+		log.Printf("DEBUG: Successfully loaded %d overrides from database", len(overrides))
 	}
 
 	normalized := make([]NormalizedSmmService, 0)
@@ -289,7 +290,39 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 		// Flag Overrides (pointers to allow tri-state: true/false/nil)
 		var overrideRefill, overrideCancel, overrideDripfeed *bool
 
-		if ov, ok := overrides[raw.Service.String()]; ok {
+		// Try to match override using raw ID (123) or full ID (source:123)
+		rawSID := raw.Service.String()
+		fullSID := fmt.Sprintf("%s:%s", "topsmm", rawSID)
+
+		var ov struct {
+			DisplayName      string
+			DisplayDesc      string
+			Multiplier       float64
+			IsHidden         bool
+			Category         string
+			Tags             []string
+			ProviderCategory string
+			PurchaseCount    int
+			DisplayID        string
+			Refill           *bool
+			Cancel           *bool
+			Dripfeed         *bool
+			ServiceType      *string
+			Targeting        *string
+			Quality          *string
+			Stability        *string
+		}
+		found := false
+
+		if o, ok := overrides[rawSID]; ok {
+			ov = o
+			found = true
+		} else if o, ok := overrides[fullSID]; ok {
+			ov = o
+			found = true
+		}
+
+		if found {
 			if ov.IsHidden {
 				continue
 			}

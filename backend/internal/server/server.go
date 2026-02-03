@@ -31,7 +31,7 @@ func New(cfg *config.Config) *http.Server {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000", "https://pablosmm-one.vercel.app", "https://pablosmm.com", "https://www.pablosmm.com"}, // Required for cookies
+		AllowedOrigins:   []string{"http://localhost:3000", "https://pablosmm-one.vercel.app", "https://pablosmm.com", "https://www.pablosmm.com", "https://api.pablosmm.com"}, // Required for cookies
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "x-user-email"},
 		AllowCredentials: true,
@@ -63,6 +63,7 @@ func New(cfg *config.Config) *http.Server {
 		r.Get("/profile", h.GetProfile)
 		r.Get("/fx", h.GetFX)
 		r.Get("/metadata", h.GetMetadata)
+		r.Get("/admin/services/refresh", h.RefreshServices)
 		r.Post("/admin/services/override", h.UpdateServiceOverride)
 		r.Post("/admin/services/bulk-override", h.BulkUpdateServiceOverrides)
 		r.Post("/admin/services/ai-rewrite", h.AIRewriteService)

@@ -49,6 +49,11 @@ func (h *Handler) GetServices(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *Handler) RefreshServices(w http.ResponseWriter, r *http.Request) {
+	h.smm.InvalidateCache()
+	json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Cache invalidated"})
+}
+
 func (h *Handler) GetFX(w http.ResponseWriter, r *http.Request) {
 	rate := h.fx.GetUsdToInr()
 	json.NewEncoder(w).Encode(map[string]interface{}{
