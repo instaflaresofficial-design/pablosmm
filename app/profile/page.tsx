@@ -65,7 +65,7 @@ export default function Page() {
           </button>
         </div>
       </div>
-      <div className="profile-container">
+      <div className="profile-container edit-profile">
         <div className="account-overview">
           <h2>Account Overview</h2>
           <div className="profile-wallet-container">
@@ -107,6 +107,16 @@ export default function Page() {
             <li><Link href="/orders"><Image src="/bottom-nav/history.png" alt="Orders History" width={20} height={20} />Orders History</Link></li>
             <li><Link href="/wallet"><Image src="/bottom-nav/wallet.png" alt="Wallet" width={20} height={20} />Wallet</Link></li>
           </ul>
+        </div>
+        <div className="edit-overview">
+          <h2>Edit Profile</h2>
+          <form>
+            <label htmlFor="name">Name</label>
+            <input type="text" id="name" name="name" value={user.name} />
+            <label htmlFor="email">Email</label>
+            <input type="email" id="email" name="email" value={user.email} />
+            <button type="submit">Save Changes</button>
+          </form>
         </div>
       </div>
     </div>

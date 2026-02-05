@@ -31,7 +31,7 @@ func New(cfg *config.Config) *http.Server {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000", "https://pablosmm-one.vercel.app", "https://pablosmm.com", "https://www.pablosmm.com", "https://api.pablosmm.com"}, // Required for cookies
+		AllowedOrigins:   []string{"http://localhost:3000", "http://192.168.1.21:3000", "https://pablosmm-one.vercel.app", "https://pablosmm.com", "https://www.pablosmm.com", "https://api.pablosmm.com"}, // Required for cookies
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "x-user-email"},
 		AllowCredentials: true,

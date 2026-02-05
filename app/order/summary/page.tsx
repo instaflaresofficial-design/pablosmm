@@ -30,7 +30,7 @@ type Category = 'recommended' | 'cheapest' | 'premium';
 const SummaryContent = () => {
   const { platform, service, variant, link } = useSelectionFromQuery();
   const { services: all, loading } = useNormalizedServices();
-  const { metadata, loading: metaLoading } = useMetadata(link);
+  const { metadata, loading: metaLoading } = useMetadata(link, service);
   const [quantity, setQuantity] = useState<number>(1000);
   const [search, setSearch] = useState<string>('');
   const [category, setCategory] = useState<Category>('recommended');

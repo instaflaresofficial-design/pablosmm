@@ -2778,8 +2778,9 @@ h6 {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-top: 24px;
+  margin-top: 12px;
   padding: 16px;
+  padding-bottom: 0;
 }
 .root .profile-page .user-container .profile-img {
   width: 56px;
@@ -2993,6 +2994,61 @@ h6 {
   margin: 0;
   line-height: 1;
   text-transform: uppercase;
+}
+.root .profile-page .profile-container.edit-profile {
+  transform: scale(0.96);
+  border-radius: 16px 16px 32px 32px;
+  padding: 12px 12px 120px;
+}
+.root .profile-page .profile-container.edit-profile .account-overview {
+  display: none;
+}
+.root .profile-page .profile-container.edit-profile .account-settings {
+  display: none;
+}
+.root .profile-page .profile-container.edit-profile .edit-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.root .profile-page .profile-container.edit-profile .edit-overview h2 {
+  font-family: GM;
+  font-size: 0.76rem;
+  color: #606060;
+  margin: 0;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.root .profile-page .profile-container.edit-profile .edit-overview form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.root .profile-page .profile-container.edit-profile .edit-overview form label {
+  font-family: GM;
+  font-size: 0.86rem;
+  color: #878787;
+  margin: 0;
+  line-height: 1;
+}
+.root .profile-page .profile-container.edit-profile .edit-overview form input {
+  color: #939393;
+  background: #2d2d2d;
+  border: 1px solid #33333314;
+  border-radius: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  font-family: GM;
+  font-size: 0.97rem;
+  line-height: 1;
+}
+.root .profile-page .profile-container.edit-profile .edit-overview form input::placeholder {
+  color: #666666;
+}
+.root .profile-page .profile-container.edit-profile .edit-overview form input:focus {
+  border-color: #ffffff14;
+  outline: none;
+  box-shadow: 0 0 2px #0e0d0d7d;
 }
 .root .orders-page {
   z-index: 10;

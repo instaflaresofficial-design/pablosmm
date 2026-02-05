@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: '**.twimg.com' },
       { protocol: 'https', hostname: '**.googleusercontent.com' },
       { protocol: 'https', hostname: 'i.ytimg.com' },
+      { protocol: 'https', hostname: 'yt3.ggpht.com' },
+      { protocol: 'https', hostname: 'unavatar.io' },
     ],
   },
   async rewrites() {
