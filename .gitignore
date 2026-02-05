@@ -33,6 +33,15 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# Backend environment files (NEVER commit)
+backend/.env
+backend/.env.local
+
+# Test files with potential secrets
+test.js
+*.test.local.js
+*.test.local.ts
+
 # vercel
 .vercel
 

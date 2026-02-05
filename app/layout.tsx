@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./style.css";
 import { CurrencyProvider } from "@/components/layout/CurrencyProvider";
 import RootShell from "@/components/layout/RootShell";
@@ -21,6 +22,19 @@ export default function RootLayout({
         <meta name="cryptomus" content="e01f06fd" />
       </head>
       <body>
+        {/* Google Analytics */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-S9HL88JSY2"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-S9HL88JSY2');
+          `}
+        </Script>
         <CurrencyProvider>
           <AuthProvider>
             <RootShell>{children}</RootShell>
