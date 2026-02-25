@@ -104,14 +104,52 @@ func (s *OrderSyncer) SyncOrders(ctx context.Context) {
 
 					// CRITICAL: Do NOT overwrite refunded or canceled orders
 					// These are terminal states set manually by admins
-					_, err := s.db.Pool.Exec(ctx, `
-						UPDATE orders 
-						SET status = $1, remains = $2, start_count = $3 
-						WHERE id = $4 AND status NOT IN ('refunded', 'canceled')
-					`, localStatus, remains, startCount, localID)
-
+					// Fetch the order data so we can calculate refunds if topsmm canceled it
+					var amountCents, uID, quantity int
+					var currentStatus string
+					err := s.db.Pool.QueryRow(ctx, "SELECT amount_cents, user_id, quantity, status FROM orders WHERE id = $1", localID).Scan(&amountCents, &uID, &quantity, &currentStatus)
 					if err != nil {
-						log.Printf("Failed to update order %d: %v", localID, err)
+						log.Printf("Failed to read order %d for refund sync: %v", localID, err)
+						continue
+					}
+
+					// Proceed if the DB status is not already terminal
+					if currentStatus != "refunded" && currentStatus != "canceled" {
+						tx, txErr := s.db.Pool.Begin(ctx)
+						if txErr == nil {
+							refundCents := 0
+							if localStatus == "canceled" {
+								refundCents = amountCents // 100% refund
+							} else if localStatus == "partial" && quantity > 0 && remains > 0 {
+								// Safe integer math: fraction of amount to refund
+								refundCents = (amountCents * remains) / quantity
+							}
+
+							if refundCents > 0 {
+								// Refund Wallet
+								tx.Exec(ctx, "UPDATE wallets SET balance = balance + $1 WHERE user_id = $2", refundCents, uID)
+
+								// Log Transaction
+								tx.Exec(ctx, "INSERT INTO transactions (user_id, amount, type, description) VALUES ($1, $2, 'credit', $3)",
+									uID, float64(refundCents)/100.0, fmt.Sprintf("Auto-Refund for provider status '%s' Order #%d", localStatus, localID))
+
+								// Update Order with Refund Amount
+								tx.Exec(ctx, `
+									UPDATE orders 
+									SET status = $1, remains = $2, start_count = $3, refunded_amount = COALESCE(refunded_amount, 0) + $4
+									WHERE id = $5
+								`, localStatus, remains, startCount, refundCents, localID)
+							} else {
+								// Just update the status normally
+								tx.Exec(ctx, `
+									UPDATE orders 
+									SET status = $1, remains = $2, start_count = $3 
+									WHERE id = $4
+								`, localStatus, remains, startCount, localID)
+							}
+
+							tx.Commit(ctx)
+						}
 					}
 				}
 			}
