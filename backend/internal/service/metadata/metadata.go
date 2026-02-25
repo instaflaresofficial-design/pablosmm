@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"encoding/json"
+	"fmt"
 	"html"
 	"io"
 	"log"
@@ -37,7 +38,7 @@ type cacheItem struct {
 func New() *Service {
 	return &Service{
 		client: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout: 15 * time.Second,
 		},
 		cache: make(map[string]cacheItem),
 	}
@@ -63,41 +64,30 @@ func (s *Service) Fetch(targetURL string) (*Metadata, error) {
 			log.Printf("[Metadata] Trying Instagram oEmbed API for %s", targetURL)
 			if meta, err := s.fetchInstagramOEmbed(targetURL); err == nil && meta.Image != "" {
 				log.Printf("[Metadata] oEmbed success for %s", targetURL)
-				// Cache the result
-				s.mu.Lock()
-				s.cache[targetURL] = cacheItem{
-					data:   meta,
-					expiry: time.Now().Add(1 * time.Hour),
-				}
-				s.mu.Unlock()
+				s.saveCache(targetURL, meta)
 				return meta, nil
-			} else {
-				log.Printf("[Metadata] oEmbed failed: %v, falling back to scraping", err)
 			}
 		}
 	}
 
-	fetchURL := targetURL
-
-	// For Instagram, DON'T use /embed/ - it redirects to Facebook and gets blocked
-	// Instead, use direct URL with mobile headers
-
-	req, err := http.NewRequest("GET", fetchURL, nil)
+	// General Scraping
+	req, err := http.NewRequest("GET", targetURL, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	// Masquerade as a real Mobile browser (more likely to be allowed for basic info)
-	req.Header.Set("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1")
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
+	// Use a modern User-Agent to avoid detection
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	req.Header.Set("Cache-Control", "no-cache")
-	req.Header.Set("Pragma", "no-cache")
+	req.Header.Set("Upgrade-Insecure-Requests", "1")
+	req.Header.Set("Sec-Ch-Ua", "\"Not_A Brand\";v=\"8\", \"Chromium\";v=\"120\", \"Google Chrome\";v=\"120\"")
+	req.Header.Set("Sec-Ch-Ua-Mobile", "?0")
+	req.Header.Set("Sec-Ch-Ua-Platform", "\"Windows\"")
 	req.Header.Set("Sec-Fetch-Dest", "document")
 	req.Header.Set("Sec-Fetch-Mode", "navigate")
 	req.Header.Set("Sec-Fetch-Site", "none")
 	req.Header.Set("Sec-Fetch-User", "?1")
-	req.Header.Set("Upgrade-Insecure-Requests", "1")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -106,11 +96,15 @@ func (s *Service) Fetch(targetURL string) (*Metadata, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Metadata fetch warning: %s (via %s) returned %d", targetURL, fetchURL, resp.StatusCode)
+		log.Printf("Metadata fetch warning: %s returned %d", targetURL, resp.StatusCode)
+		// If 404 or 429, we might want to return partial data or error
+		if resp.StatusCode == 404 {
+			return nil, fmt.Errorf("page not found")
+		}
 	}
 
-	// Read first 256KB for IG/Modern pages
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 262144))
+	// Read bigger chunk (512KB) to capture stats often at the bottom of head or in body
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 512*1024))
 	htmlContent := string(body)
 
 	m := &Metadata{
@@ -119,7 +113,7 @@ func (s *Service) Fetch(targetURL string) (*Metadata, error) {
 		Image:       html.UnescapeString(extractMeta(htmlContent, "image")),
 	}
 
-	// Secondary check for common thumbnail tags
+	// Image fallbacks
 	if m.Image == "" {
 		m.Image = html.UnescapeString(extractMeta(htmlContent, "thumbnail"))
 	}
@@ -127,65 +121,127 @@ func (s *Service) Fetch(targetURL string) (*Metadata, error) {
 		m.Image = html.UnescapeString(extractMeta(htmlContent, "twitter:image"))
 	}
 
-	// Fallback to og:title if plain title failed
+	// Title fallback
 	if m.Title == "" {
 		m.Title = html.UnescapeString(extractMeta(htmlContent, "title"))
 	}
+	if m.Title == "" {
+		m.Title = html.UnescapeString(extractMeta(htmlContent, "twitter:title"))
+	}
 
-	// Instagram Specific: Extract stats from description or twitter:description
+	// PLATFORM SPECIFIC PARSING
 	if strings.Contains(targetURL, "instagram.com") {
+		// IG Parsing
 		desc := m.Description
 		if desc == "" {
 			desc = html.UnescapeString(extractMeta(htmlContent, "twitter:description"))
 		}
-
-		log.Printf("[Metadata] Parsing Instagram Stats from: %s", desc)
 		m.Followers, m.Following, m.Posts = parseInstagramStats(desc)
 
-		if m.Followers == 0 && m.Following == 0 && m.Posts == 0 {
-			// Log just the start of the body to see what we're getting
-			limit := len(htmlContent)
-			if limit > 2000 {
-				limit = 2000
+	} else if strings.Contains(targetURL, "tiktok.com") {
+		// TikTok Parsing
+		// TikTok often puts stats in description: "X Followers, Y Following, Z Likes"
+		desc := m.Description
+		if desc == "" {
+			desc = html.UnescapeString(extractMeta(htmlContent, "twitter:description"))
+		}
+		// TikTok OEmbed is also an option but let's try scraping first
+		m.Followers, m.Following, m.Posts = parseTikTokStats(desc)
+		if m.Followers == 0 {
+			// Try oEmbed as fallback for profiles? TikTok oEmbed is mostly for videos.
+		}
+
+	} else if strings.Contains(targetURL, "youtube.com") || strings.Contains(targetURL, "youtu.be") {
+		// YouTube Parsing
+		// Try extracting from body text "1.2M subscribers"
+		m.Followers = extractYouTubeSubscribers(htmlContent)
+		
+		// If video, try oEmbed
+		if m.Title == "" || m.Image == "" {
+			// Simple oEmbed for Title/Image
+			oembedURL := "https://www.youtube.com/oembed?url=" + url.QueryEscape(targetURL) + "&format=json"
+			if oResp, err := s.client.Get(oembedURL); err == nil && oResp.StatusCode == 200 {
+				var oData struct {
+					Title string `json:"title"` 
+					Thumb string `json:"thumbnail_url"`
+					Auth  string `json:"author_name"`
+				}
+				json.NewDecoder(oResp.Body).Decode(&oData)
+				if m.Title == "" { m.Title = oData.Title }
+				if m.Image == "" { m.Image = oData.Thumb }
+				if m.Description == "" { m.Description = "By " + oData.Auth }
 			}
-			log.Printf("[Metadata] DEBUG: HTML Start: %s", htmlContent[:limit])
+		}
+	} else if strings.Contains(targetURL, "x.com") || strings.Contains(targetURL, "twitter.com") {
+		// X Parsing: hard to scrape.
+		// Use unavatar for image if missing
+		if m.Image == "" {
+			parts := strings.Split(targetURL, "/")
+			if len(parts) > 3 {
+				username := parts[3]
+				// Basic cleaning
+				username = strings.Split(username, "?")[0]
+				m.Image = "https://unavatar.io/twitter/" + username
+			}
 		}
 	}
 
-	log.Printf("Metadata Result for %s: Image=%s, Title=%s, Stats=%d/%d/%d", targetURL, m.Image, m.Title, m.Followers, m.Following, m.Posts)
+	s.saveCache(targetURL, m)
+	return m, nil
+}
 
-	// Cache the result for 1 hour
+func (s *Service) saveCache(url string, m *Metadata) {
 	s.mu.Lock()
-	s.cache[targetURL] = cacheItem{
+	s.cache[url] = cacheItem{
 		data:   m,
 		expiry: time.Now().Add(1 * time.Hour),
 	}
 	s.mu.Unlock()
-
-	return m, nil
 }
 
 func parseInstagramStats(desc string) (followers, following, posts int) {
-	// Independent search for each stat to handle varied order
-	// Patterns: "123 Followers", "1.2K Following", "45 Posts"
 	fRe := regexp.MustCompile(`(?i)([\d,.]+)([KMB]?)\s*Followers`)
 	fingRe := regexp.MustCompile(`(?i)([\d,.]+)([KMB]?)\s*Following`)
 	pRe := regexp.MustCompile(`(?i)([\d,.]+)([KMB]?)\s*Posts`)
 
-	if fMatch := fRe.FindStringSubmatch(desc); len(fMatch) >= 3 {
-		followers = parseCount(fMatch[1], fMatch[2])
+	if match := fRe.FindStringSubmatch(desc); len(match) >= 3 {
+		followers = parseCount(match[1], match[2])
 	}
-	if fingMatch := fingRe.FindStringSubmatch(desc); len(fingMatch) >= 3 {
-		following = parseCount(fingMatch[1], fingMatch[2])
+	if match := fingRe.FindStringSubmatch(desc); len(match) >= 3 {
+		following = parseCount(match[1], match[2])
 	}
-	if pMatch := pRe.FindStringSubmatch(desc); len(pMatch) >= 3 {
-		posts = parseCount(pMatch[1], pMatch[2])
-	}
-
-	if followers == 0 && following == 0 && posts == 0 {
-		log.Printf("[Metadata] All stats failed for description: %s", desc)
+	if match := pRe.FindStringSubmatch(desc); len(match) >= 3 {
+		posts = parseCount(match[1], match[2])
 	}
 	return
+}
+
+func parseTikTokStats(desc string) (followers, following, likes int) {
+	// "10.5K Followers, 20 Following, 100 Likes..."
+	fRe := regexp.MustCompile(`(?i)([\d,.]+)([KMB]?)\s*Followers`)
+	fingRe := regexp.MustCompile(`(?i)([\d,.]+)([KMB]?)\s*Following`)
+	lRe := regexp.MustCompile(`(?i)([\d,.]+)([KMB]?)\s*Likes`)
+
+	if match := fRe.FindStringSubmatch(desc); len(match) >= 3 {
+		followers = parseCount(match[1], match[2])
+	}
+	if match := fingRe.FindStringSubmatch(desc); len(match) >= 3 {
+		following = parseCount(match[1], match[2])
+	}
+	if match := lRe.FindStringSubmatch(desc); len(match) >= 3 {
+		likes = parseCount(match[1], match[2]) // We map likes to posts for generic struct if needed, or ignore
+	}
+	return followers, following, likes
+}
+
+func extractYouTubeSubscribers(html string) int {
+	// Look for "1.2M subscribers" in text
+	re := regexp.MustCompile(`(?i)([\d,.]+)([KMB]?)\s*subscribers`)
+	match := re.FindStringSubmatch(html)
+	if len(match) >= 3 {
+		return parseCount(match[1], match[2])
+	}
+	return 0
 }
 
 func parseCount(val, suffix string) int {
@@ -202,62 +258,46 @@ func parseCount(val, suffix string) int {
 	return int(f)
 }
 
-func extractTag(html, tag string) string {
+func extractTag(htmlContent, tag string) string {
 	re := regexp.MustCompile("(?i)<" + tag + "[^>]*>([^<]+)")
-	match := re.FindStringSubmatch(html)
+	match := re.FindStringSubmatch(htmlContent)
 	if len(match) > 1 {
 		return strings.TrimSpace(match[1])
 	}
 	return ""
 }
 
-func extractMeta(html, property string) string {
-	// Try multiple variations for OpenGraph and Twitter tags
-	// Using (?s) to match across newlines and [^>]* to handle intermediate attributes
+func extractMeta(htmlContent, property string) string {
 	patterns := []string{
 		`(?is)<meta\s+[^>]*(?:property|name|itemprop)=["'](?:og:|twitter:)?` + property + `["'][^>]*content=["']([^"']+)["']`,
 		`(?is)<meta\s+[^>]*content=["']([^"']+)["'][^>]*(?:property|name|itemprop)=["'](?:og:|twitter:)?` + property + `["']`,
 	}
-
 	for _, p := range patterns {
 		re := regexp.MustCompile(p)
-		if match := re.FindStringSubmatch(html); len(match) > 1 {
+		if match := re.FindStringSubmatch(htmlContent); len(match) > 1 {
 			return strings.TrimSpace(match[1])
 		}
 	}
 	return ""
 }
 
-// fetchInstagramOEmbed fetches metadata using Instagram's official oEmbed API
-// This is MUCH faster and more reliable than scraping for Reels/Posts
 func (s *Service) fetchInstagramOEmbed(targetURL string) (*Metadata, error) {
-	// Instagram oEmbed endpoint
 	oembedURL := "https://api.instagram.com/oembed/?url=" + url.QueryEscape(targetURL)
-
 	req, err := http.NewRequest("GET", oembedURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
+	if err != nil { return nil, err }
+	
 	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
+	if err != nil { return nil, err }
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, err
-	}
+	if resp.StatusCode != http.StatusOK { return nil, fmt.Errorf("status %d", resp.StatusCode) }
 
 	var oembedData struct {
 		Title        string `json:"title"`
 		AuthorName   string `json:"author_name"`
 		ThumbnailURL string `json:"thumbnail_url"`
 	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&oembedData); err != nil {
-		return nil, err
-	}
+	if err := json.NewDecoder(resp.Body).Decode(&oembedData); err != nil { return nil, err }
 
 	return &Metadata{
 		Title:       oembedData.Title,
@@ -265,3 +305,4 @@ func (s *Service) fetchInstagramOEmbed(targetURL string) (*Metadata, error) {
 		Image:       oembedData.ThumbnailURL,
 	}, nil
 }
+

@@ -7,7 +7,7 @@ import { useAuth } from '@/components/providers/auth-provider';
 import { toast } from 'sonner';
 
 const OrdersPage = () => {
-  const { user } = useAuth();
+  const { user, convertPrice } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
@@ -53,7 +53,7 @@ const OrdersPage = () => {
       const data = await res.json();
       toast.success("Order canceled successfully");
       if (data.newBalance !== undefined) {
-        toast.info(`Refunded. New Balance: ₹${data.newBalance}`);
+        toast.info(`Refunded. New Balance: ${convertPrice(data.newBalance)}`);
       }
       fetchOrders();
     } catch (error: any) {

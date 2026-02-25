@@ -1,6 +1,7 @@
 import React from "react";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { useAuth } from "@/components/providers/auth-provider";
 
 export type Order = {
   id: number;
@@ -23,6 +24,7 @@ interface OrdersCardProps {
 }
 
 const OrdersCard: React.FC<OrdersCardProps> = ({ orders = [], onCancel, cancellingId }) => {
+  const { convertPrice } = useAuth();
   const renderStatus = (s: string) => {
     switch (s) {
       case "completed": return "Completed";
@@ -76,7 +78,11 @@ const OrdersCard: React.FC<OrdersCardProps> = ({ orders = [], onCancel, cancelli
                 </div>
 
                 <h3 className="order-title">
-                  {o.serviceName ? o.serviceName : (<span>Service #{o.displayId || o.serviceId}</span>)}
+                  {o.serviceName ? (
+                    <span>{o.serviceName} <span className="text-xs text-muted-foreground font-mono">#{o.displayId || o.serviceId.split(':').pop()}</span></span>
+                  ) : (
+                    <span>Service #{o.displayId || o.serviceId.split(':').pop()}</span>
+                  )}
                 </h3>
 
                 <div className="order-grid">
@@ -87,7 +93,7 @@ const OrdersCard: React.FC<OrdersCardProps> = ({ orders = [], onCancel, cancelli
 
                   <div className="order-field">
                     <div className="label">Price</div>
-                    <div className="value">₹{o.charge.toFixed(4)}</div>
+                    <div className="value">{convertPrice(o.charge)}</div>
                   </div>
 
                   <div className="order-field">

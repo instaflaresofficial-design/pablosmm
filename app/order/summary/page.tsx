@@ -136,10 +136,11 @@ const SummaryContent = () => {
         body = { error: text || res.statusText };
       }
 
-      // Handle Provider Error (nested inside success response)
-      if (body?.order?.error) {
-        const providerError = body.order.error;
-        if (typeof providerError === 'string' && providerError.toLowerCase().includes('balance')) {
+      // Handle Provider Error (nested inside success/failed response)
+      // body.status is "failed" when provider rejected, "success" when all went well
+      if (body?.status === "failed" && body?.order?.error) {
+        const providerError = String(body.order.error);
+        if (providerError.toLowerCase().includes('balance')) {
           toast.error("Insufficient Balance on Provider", {
             description: "We are out of balance on the main server. Please contact support.",
             duration: 5000,
@@ -147,8 +148,7 @@ const SummaryContent = () => {
           setOrderStatus(`Provider Error: ${providerError}`);
           return;
         }
-        // General provider error
-        toast.error("Order Failed (Provider)", { description: providerError });
+        toast.error("Order Failed", { description: providerError });
         setOrderStatus(`Provider Error: ${providerError}`);
         return;
       }
@@ -170,6 +170,13 @@ const SummaryContent = () => {
         const msg = String(body?.error || JSON.stringify(body));
         toast.error("Order Failed", { description: msg });
         setOrderStatus(msg);
+      } else if (body?.status === "success") {
+        // Explicit success check — always show green toast
+        toast.success("🎉 Order Placed Successfully!", {
+          description: "Your order has been submitted and is being processed.",
+          duration: 4000,
+        });
+        setOrderStatus("Order submitted successfully.");
       } else if (body?.error) {
         toast.error("Error", { description: body.error });
         setOrderStatus(body.error);

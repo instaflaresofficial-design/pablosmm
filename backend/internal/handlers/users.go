@@ -22,6 +22,7 @@ type AdminUser struct {
 	Balance    float64 `json:"balance"` // Converted from cents
 	OrderCount int     `json:"orderCount"`
 	TotalSpend float64 `json:"totalSpend"` // Converted from cents
+	Currency   string  `json:"currency"`
 	CreatedAt  string  `json:"createdAt"`
 }
 
@@ -32,9 +33,11 @@ type WalletUpdateReq struct {
 }
 
 type UserUpdateReq struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
-	Role  string `json:"role"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Role     string `json:"role"`
+	Mobile   string `json:"mobile"`
+	Currency string `json:"currency"`
 }
 
 // GetUsers lists all users with pagination and search
@@ -57,7 +60,7 @@ func (h *Handler) GetUsers(w http.ResponseWriter, r *http.Request) {
 	// Build query
 	baseQuery := `
 		SELECT 
-			u.id, u.name, COALESCE(u.username, ''), u.email, COALESCE(u.mobile, ''), u.role, u.created_at,
+			u.id, u.name, COALESCE(u.username, ''), u.email, COALESCE(u.mobile, ''), u.role, COALESCE(u.currency, 'USD'), u.created_at,
 			COALESCE(w.balance, 0),
 			(SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id),
 			(SELECT COALESCE(SUM(o.amount_cents), 0) FROM orders o WHERE o.user_id = u.id)
@@ -94,7 +97,7 @@ func (h *Handler) GetUsers(w http.ResponseWriter, r *http.Request) {
 		var totalSpendCents int
 		var createdAtTime interface{}
 
-		if err := rows.Scan(&u.ID, &u.Name, &u.Username, &u.Email, &u.Mobile, &u.Role, &createdAtTime, &balanceCents, &u.OrderCount, &totalSpendCents); err != nil {
+		if err := rows.Scan(&u.ID, &u.Name, &u.Username, &u.Email, &u.Mobile, &u.Role, &u.Currency, &createdAtTime, &balanceCents, &u.OrderCount, &totalSpendCents); err != nil {
 			log.Printf("Error scanning user row: %v", err)
 			continue
 		}
@@ -129,14 +132,14 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 	// Fetch basic info
 	err = h.db.Pool.QueryRow(context.Background(), `
 		SELECT 
-			u.id, u.name, COALESCE(u.username, ''), u.email, COALESCE(u.mobile, ''), u.role, u.created_at,
+			u.id, u.name, COALESCE(u.username, ''), u.email, COALESCE(u.mobile, ''), u.role, COALESCE(u.currency, 'USD'), u.created_at,
 			COALESCE(w.balance, 0),
 			(SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id),
 			(SELECT COALESCE(SUM(o.amount_cents), 0) FROM orders o WHERE o.user_id = u.id)
 		FROM users u
 		LEFT JOIN wallets w ON u.id = w.user_id
 		WHERE u.id = $1
-	`, id).Scan(&u.ID, &u.Name, &u.Username, &u.Email, &u.Mobile, &u.Role, &createdAtTime, &balanceCents, &u.OrderCount, &totalSpendCents)
+	`, id).Scan(&u.ID, &u.Name, &u.Username, &u.Email, &u.Mobile, &u.Role, &u.Currency, &createdAtTime, &balanceCents, &u.OrderCount, &totalSpendCents)
 
 	if err != nil {
 		http.Error(w, "User not found", http.StatusNotFound)
@@ -340,6 +343,16 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		args = append(args, req.Role)
 		argID++
 	}
+	if req.Mobile != "" {
+		updates = append(updates, fmt.Sprintf("mobile=$%d", argID))
+		args = append(args, req.Mobile)
+		argID++
+	}
+	if req.Currency != "" {
+		updates = append(updates, fmt.Sprintf("currency=$%d", argID))
+		args = append(args, req.Currency)
+		argID++
+	}
 
 	if len(updates) == 0 {
 		http.Error(w, "No fields to update", http.StatusBadRequest)
@@ -369,6 +382,83 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+}
+
+// UpdateProfile updates the authenticated user's profile (restricted fields)
+func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+	userIDVal := r.Context().Value("userID")
+	if userIDVal == nil {
+		log.Printf("❌ [UpdateProfile] No userID in context")
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID := userIDVal.(int)
+
+	var req UserUpdateReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Dynamic update query
+	query := "UPDATE users SET "
+	args := []interface{}{}
+	argID := 1
+	updates := []string{}
+
+	if req.Name != "" {
+		updates = append(updates, fmt.Sprintf("name=$%d", argID))
+		args = append(args, req.Name)
+		argID++
+	}
+	// Do NOT allow updating email or role here for safety
+	// if req.Email != "" {
+	// 	updates = append(updates, fmt.Sprintf("email=$%d", argID))
+	// 	args = append(args, req.Email)
+	// 	argID++
+	// }
+	if req.Mobile != "" {
+		updates = append(updates, fmt.Sprintf("mobile=$%d", argID))
+		args = append(args, req.Mobile)
+		argID++
+	}
+	if req.Currency != "" {
+		updates = append(updates, fmt.Sprintf("currency=$%d", argID))
+		args = append(args, req.Currency)
+		argID++
+	}
+
+	if len(updates) == 0 {
+		http.Error(w, "No fields to update", http.StatusBadRequest)
+		return
+	}
+
+	query += fmt.Sprintf("%s WHERE id=$%d",
+		func() string {
+			res := ""
+			for i, u := range updates {
+				if i > 0 {
+					res += ", "
+				}
+				res += u
+			}
+			return res
+		}(),
+		argID,
+	)
+	args = append(args, userID)
+
+	_, err := h.db.Pool.Exec(context.Background(), query, args...)
+	if err != nil {
+		log.Printf("Update profile failed: %v", err)
+		http.Error(w, "Failed to update profile", http.StatusInternalServerError)
+		return
+	}
+
+	// Fetch updated user to return
+	// Or just return success
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }

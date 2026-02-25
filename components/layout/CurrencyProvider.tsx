@@ -8,22 +8,22 @@ type Ctx = {
   currency: Currency;
   setCurrency: (c: Currency) => void;
   // USD -> display currency conversion rate (INR per USD when INR selected)
-  usdToInr: number;
+  usdToInr: number | null;
   // Convert an amount in USD to the active currency number
-  convert: (amountUsd: number) => number;
+  convert: (amountInUsd: number) => number;
   // Convert an amount in the active currency back to USD
   convertToUsd: (amountInActive: number) => number;
   // Format a number in active currency compact (K/M suffix)
-  formatMoneyCompact: (amountUsd: number) => string;
+  formatMoneyCompact: (amountInUsd: number) => string;
   // Format a number in active currency full
-  formatMoney: (amountUsd: number) => string;
+  formatMoney: (amountInUsd: number) => string;
 };
 
 const CurrencyContext = createContext<Ctx | null>(null);
 
 const STORAGE_KEY = 'app:currency';
 const DEFAULT_CURRENCY: Currency = 'INR';
-const DEFAULT_USD_TO_INR = 83.0; // simple static rate; can be made dynamic later
+const DEFAULT_USD_TO_INR = null;
 
 function compact(n: number): string {
   if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
@@ -33,7 +33,7 @@ function compact(n: number): string {
 
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const [currency, setCurrencyState] = useState<Currency>(DEFAULT_CURRENCY);
-  const [usdToInr, setUsdToInr] = useState<number>(DEFAULT_USD_TO_INR);
+  const [usdToInr, setUsdToInr] = useState<number | null>(DEFAULT_USD_TO_INR);
 
   useEffect(() => {
     try {
@@ -82,17 +82,19 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     try { localStorage.setItem(STORAGE_KEY, c); } catch { }
   }, []);
 
-  const convert = useCallback((amountUsd: number) => {
-    return currency === 'INR' ? amountUsd * usdToInr : amountUsd;
+  const convert = useCallback((amountInUsd: number) => {
+    const rate = usdToInr || 82.5; // Final fallback if completely offline
+    return currency === 'INR' ? amountInUsd * rate : amountInUsd;
   }, [currency, usdToInr]);
 
   // Convert an amount in the active currency back to USD
   const convertToUsd = useCallback((amountInActive: number) => {
-    return currency === 'INR' ? amountInActive / usdToInr : amountInActive;
+    const rate = usdToInr || 82.5;
+    return currency === 'INR' ? amountInActive / rate : amountInActive;
   }, [currency, usdToInr]);
 
-  const formatMoney = useCallback((amountUsd: number) => {
-    const n = convert(amountUsd);
+  const formatMoney = useCallback((amountInUsd: number) => {
+    const n = convert(amountInUsd);
     if (currency === 'INR') {
       try { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n); } catch { }
       return `₹${n.toFixed(2)}`;
@@ -101,8 +103,8 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     return `$${n.toFixed(2)}`;
   }, [convert, currency]);
 
-  const formatMoneyCompact = useCallback((amountUsd: number) => {
-    const n = convert(amountUsd);
+  const formatMoneyCompact = useCallback((amountInUsd: number) => {
+    const n = convert(amountInUsd);
     const symbol = currency === 'INR' ? '₹' : '$';
     return `${symbol}${compact(n)}`;
   }, [convert, currency]);

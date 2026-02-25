@@ -8,7 +8,7 @@ import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 
 export default function Page() {
-  const { user, loading } = useAuth();
+  const { user, loading, convertPrice } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -27,8 +27,8 @@ export default function Page() {
 
   if (!user) return null;
 
-  // Backend user.balance is already a float (e.g. 10.50)
-  const balance = user.balance.toFixed(2);
+  // Backend user.balance is already a float
+  const balance = convertPrice(user.balance);
   const displayName = user.name || user.username || user.email.split('@')[0];
   const avatarUrl = user.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${displayName}`;
 
@@ -50,10 +50,16 @@ export default function Page() {
           <span>{displayName}'s Wallet</span>
         </div>
       </div>
-      <div className="wallet-container">
+      <div 
+        className="wallet-container"
+        style={{
+          backgroundImage: `url(${user.balance > 0 ? "/wallet/wallet-money.png" : "/wallet/wallet-empty.png"})`,
+          transition: "background-image 0.5s ease-in-out"
+        }}
+      >
         <div className="balance-section">
-          {/* Using Rupee symbol as per payment methods context */}
-          <span className="balance-label">₹{balance}</span>
+          {/* Using converted price directly, which includes the symbol */}
+          <span className="balance-label">{balance}</span>
           <span className="balance-amount">wallet balance</span>
         </div>
       </div>

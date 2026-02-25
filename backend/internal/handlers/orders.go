@@ -40,7 +40,12 @@ func (h *Handler) GetOrders(w http.ResponseWriter, r *http.Request) {
 			o.link,
 			(SELECT balance FROM wallets WHERE user_id = o.user_id) as user_balance
 		FROM orders o
-		LEFT JOIN service_overrides so ON (o.service_id = so.source_service_id OR split_part(o.service_id, ':', 2) = so.source_service_id)
+		LEFT JOIN service_overrides so ON (
+			o.service_id = so.source_service_id 
+			OR split_part(o.service_id, ':', 2) = so.source_service_id
+			OR o.service_id = so.source_service_id || ':' || split_part(o.service_id, ':', 2)
+			OR split_part(o.service_id, ':', 2) = split_part(so.source_service_id, ':', 2)
+		)
 		WHERE o.user_id = $1
 	`
 	args := []interface{}{userID}
@@ -124,7 +129,7 @@ func (h *Handler) GetOrders(w http.ResponseWriter, r *http.Request) {
 		if dispName != "" {
 			o.DisplayName = dispName
 		} else {
-			o.DisplayName = "Service #" + o.DisplayID
+			o.DisplayName = "" // Let frontend handle the fallback
 		}
 
 		// Normalize Status for UI

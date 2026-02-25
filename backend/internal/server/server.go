@@ -3,6 +3,7 @@ package server
 import (
 	"log"
 	"net/http"
+	"strings"
 
 	"pablosmm/backend/internal/config"
 	"pablosmm/backend/internal/db"
@@ -31,7 +32,25 @@ func New(cfg *config.Config) *http.Server {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000", "http://192.168.1.21:3000", "https://pablosmm-one.vercel.app", "https://pablosmm.com", "https://www.pablosmm.com", "https://api.pablosmm.com"}, // Required for cookies
+		AllowOriginFunc: func(r *http.Request, origin string) bool {
+			// Allow local development (localhost, 127.0.0.1)
+			if origin == "http://localhost:3000" || origin == "http://127.0.0.1:3000" {
+				log.Printf("✅ [CORS] Allowed localhost origin: %s", origin)
+				return true
+			}
+			// Allow local network IPs (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+			if strings.HasPrefix(origin, "http://192.168.") || strings.HasPrefix(origin, "http://10.") || strings.HasPrefix(origin, "http://172.") {
+				log.Printf("✅ [CORS] Allowed local network origin: %s", origin)
+				return true
+			}
+			// Allow production domains
+			if origin == "https://pablosmm.com" || origin == "https://www.pablosmm.com" || origin == "https://api.pablosmm.com" || strings.HasSuffix(origin, ".vercel.app") {
+				log.Printf("✅ [CORS] Allowed production origin: %s", origin)
+				return true
+			}
+			log.Printf("❌ [CORS] Rejected origin: %s", origin)
+			return false
+		},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "x-user-email"},
 		AllowCredentials: true,
@@ -41,6 +60,10 @@ func New(cfg *config.Config) *http.Server {
 	r.Route("/api", func(r chi.Router) {
 		// Init Auth (runtime check)
 		handlers.InitAuth()
+
+		// Health check (no auth required)
+		r.Get("/health", h.HealthCheck)
+		r.Post("/webhooks/cryptomus", h.CryptomusWebhook)
 
 		// Public Auth
 		r.Post("/auth/register", h.Register)
@@ -54,9 +77,13 @@ func New(cfg *config.Config) *http.Server {
 			r.Use(h.AuthMiddleware)
 			r.Get("/auth/me", h.Me)
 			r.Post("/wallet/deposit", h.RequestDeposit)
+			r.Post("/wallet/cryptomus/create", h.CreateCryptomusPayment)
 			r.Get("/orders", h.GetOrders)
 			r.Post("/orders/{id}/cancel", h.CancelOrder)
 			r.Post("/orders", h.CreateOrder)
+			r.Get("/orders/{id}", h.GetSingleOrder)
+			r.Post("/auth/change-password", h.ChangePassword)
+			r.Put("/profile", h.UpdateProfile) // Secure profile update
 		})
 
 		r.Get("/services", h.GetServices)

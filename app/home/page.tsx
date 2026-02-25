@@ -8,7 +8,7 @@ import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 
 export default function Home() {
-  const { user, loading } = useAuth();
+  const { user, loading, convertPrice, currencySymbol } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -28,13 +28,13 @@ export default function Home() {
   if (!user) return null;
 
   // Backend user.balance is already a float
-  const balance = user ? `₹${user.balance.toFixed(2)}` : "—";
+  const balance = user ? convertPrice(user.balance) : "—";
 
   // Stats
   const completedOrders = user.stats?.completed !== undefined ? user.stats.completed : (user.orderCount || 0);
   const activeOrders = user.stats?.active || 0;
   const failedOrders = user.stats?.failed || 0;
-  const totalSpend = (user.totalSpend !== undefined) ? `₹${user.totalSpend.toFixed(2)}` : "₹0.00";
+  const totalSpend = (user.totalSpend !== undefined) ? convertPrice(user.totalSpend) : `${currencySymbol}0.00`;
 
   return (
     <div className="home-page">

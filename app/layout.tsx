@@ -5,6 +5,7 @@ import { CurrencyProvider } from "@/components/layout/CurrencyProvider";
 import RootShell from "@/components/layout/RootShell";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { Toaster } from "sonner";
+import { MobileDebugger } from "@/components/debug/mobile-debugger";
 
 export const metadata: Metadata = {
   title: "PabloSMM - Social Media Marketing Panel",
@@ -39,6 +40,7 @@ export default function RootLayout({
           <AuthProvider>
             <RootShell>{children}</RootShell>
             <Toaster richColors position="bottom-center" />
+            <MobileDebugger />
           </AuthProvider>
         </CurrencyProvider>
       </body>

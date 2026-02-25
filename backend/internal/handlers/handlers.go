@@ -14,7 +14,10 @@ import (
 	"pablosmm/backend/internal/service/metadata"
 	"pablosmm/backend/internal/service/smm"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type Handler struct {
@@ -144,6 +147,126 @@ func (h *Handler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func validateLink(platform, serviceType, link string) error {
+	link = strings.TrimSpace(link)
+	if link == "" {
+		return fmt.Errorf("link is required")
+	}
+
+	linkLower := strings.ToLower(link)
+
+	switch platform {
+	case "instagram":
+		if !strings.Contains(linkLower, "instagram.com") {
+			return fmt.Errorf("link must be an Instagram URL")
+		}
+	case "facebook":
+		if !strings.Contains(linkLower, "facebook.com") && !strings.Contains(linkLower, "fb.watch") {
+			return fmt.Errorf("link must be a Facebook URL")
+		}
+	case "youtube":
+		if !strings.Contains(linkLower, "youtube.com") && !strings.Contains(linkLower, "youtu.be") {
+			return fmt.Errorf("link must be a YouTube URL")
+		}
+	case "tiktok":
+		if !strings.Contains(linkLower, "tiktok.com") {
+			return fmt.Errorf("link must be a TikTok URL")
+		}
+	case "telegram":
+		if !strings.Contains(linkLower, "t.me") && !strings.Contains(linkLower, "telegram.me") {
+			return fmt.Errorf("link must be a Telegram URL (t.me/...)")
+		}
+	case "x", "twitter":
+		if !strings.Contains(linkLower, "twitter.com") && !strings.Contains(linkLower, "x.com") {
+			return fmt.Errorf("link must be an X (Twitter) URL")
+		}
+	case "linkedin":
+		if !strings.Contains(linkLower, "linkedin.com") {
+			return fmt.Errorf("link must be a LinkedIn URL")
+		}
+	case "spotify":
+		if !strings.Contains(linkLower, "spotify.com") {
+			return fmt.Errorf("link must be a Spotify URL")
+		}
+	case "twitch":
+		if !strings.Contains(linkLower, "twitch.tv") {
+			return fmt.Errorf("link must be a Twitch URL")
+		}
+	case "discord":
+		if !strings.Contains(linkLower, "discord.gg") && !strings.Contains(linkLower, "discord.com") {
+			return fmt.Errorf("link must be a Discord URL")
+		}
+	}
+
+	return nil
+}
+
+func (h *Handler) GetSingleOrder(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("userID").(int)
+	orderIDStr := chi.URLParam(r, "id")
+	orderID, err := strconv.Atoi(orderIDStr)
+	if err != nil {
+		http.Error(w, "Invalid order ID", http.StatusBadRequest)
+		return
+	}
+
+	var o struct {
+		ID         int     `json:"id"`
+		ServiceID  string  `json:"serviceId"`
+		Amount     float64 `json:"charge"`
+		Quantity   int     `json:"quantity"`
+		Status     string  `json:"status"`
+		Date       string  `json:"date"`
+		Link       string  `json:"link"`
+		StartCount int     `json:"startCount"`
+		Remains    int     `json:"remains"`
+	}
+
+	var amtCents int
+	var tm time.Time
+	var remainsRaw, startCountRaw interface{}
+
+	err = h.db.Pool.QueryRow(context.Background(), `
+		SELECT 
+			id, service_id, amount_cents, quantity, status, created_at, link, remains, start_count 
+		FROM orders 
+		WHERE id = $1 AND user_id = $2
+	`, orderID, userID).Scan(
+		&o.ID, &o.ServiceID, &amtCents, &o.Quantity, &o.Status, &tm, &o.Link, &remainsRaw, &startCountRaw,
+	)
+
+	if err != nil {
+		http.Error(w, "Order not found", http.StatusNotFound)
+		return
+	}
+
+	o.Amount = float64(amtCents) / 100.0
+	o.Date = tm.Format(time.RFC3339)
+
+	if remainsRaw != nil {
+		if v, ok := remainsRaw.(int64); ok {
+			o.Remains = int(v)
+		} else if v, ok := remainsRaw.(int); ok {
+			o.Remains = v
+		}
+	}
+	if startCountRaw != nil {
+		if v, ok := remainsRaw.(int64); ok {
+			o.StartCount = int(v)
+		} else if v, ok := remainsRaw.(int); ok {
+			o.StartCount = v
+		}
+	}
+
+	if o.Status == "submitted" {
+		o.Status = "active"
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"order": o,
+	})
+}
+
 func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		ServiceID       string `json:"serviceId"`
@@ -195,6 +318,12 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 
 	if selectedService == nil {
 		http.Error(w, "Service not found", http.StatusBadRequest)
+		return
+	}
+
+	// VALIDATE LINK
+	if err := validateLink(selectedService.Platform, selectedService.ServiceType, body.Link); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -250,17 +379,7 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 4. Update sales count (Best effort, ignore errors)
-	// Try to update using full ID or suffix ID
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		h.db.Pool.Exec(ctx, `
-			UPDATE service_overrides 
-			SET purchase_count = purchase_count + 1 
-			WHERE source_service_id = $1 OR source_service_id = split_part($1, ':', 2)
-		`, body.ServiceID)
-	}()
+	// 4. Update sales count - Moved to after provider success to consolidate DB updates
 
 	// 5. Forward to SMM Provider
 	resp, placeErr := h.smm.PlaceOrder(body.SourceServiceID, strconv.Itoa(body.Quantity), body.Link)
@@ -325,8 +444,8 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	// Increment purchase count in service_overrides
 	if providerOrderID != "" {
 		_, err = h.db.Pool.Exec(context.Background(), `
-			INSERT INTO service_overrides (source_service_id, purchase_count, updated_at)
-			VALUES ($1, 1, CURRENT_TIMESTAMP)
+			INSERT INTO service_overrides (source_service_id, purchase_count, rate_multiplier, updated_at)
+			VALUES ($1, 1, 1.0, CURRENT_TIMESTAMP)
 			ON CONFLICT (source_service_id)
 			DO UPDATE SET purchase_count = service_overrides.purchase_count + 1, updated_at = CURRENT_TIMESTAMP
 		`, body.SourceServiceID)
@@ -335,6 +454,7 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"status": "success",
 		"order":  resp,

@@ -6,24 +6,28 @@ import (
 )
 
 type Config struct {
-	Port        string
-	DatabaseURL string
-	JWTSecret   string
-	SMMAPIKey   string
-	SMMAPIURL   string
-	SmmCurrency string
-	UsdToInr    float64
+	Port                string
+	DatabaseURL         string
+	JWTSecret           string
+	SMMAPIKey           string
+	SMMAPIURL           string
+	SmmCurrency         string
+	UsdToInr            float64
+	CryptomusMerchantID string
+	CryptomusAPIKey     string
 }
 
 func Load() *Config {
 	return &Config{
-		Port:        getEnv("PORT", "8080"),
-		DatabaseURL: os.Getenv("DATABASE_URL"),
-		JWTSecret:   getEnv("JWT_SECRET", "change-me"),
-		SMMAPIKey:   os.Getenv("TOPSMM_API_KEY"),
-		SMMAPIURL:   getEnv("TOPSMM_API_URL", "https://topsmm.in/api/v2"),
-		SmmCurrency: getEnv("SMM_CURRENCY", "USD"),
-		UsdToInr:    getEnvFloat("USD_TO_INR", 83.0),
+		Port:                getEnv("PORT", "8080"),
+		DatabaseURL:         os.Getenv("DATABASE_URL"),
+		JWTSecret:           getEnv("JWT_SECRET", "change-me"),
+		SMMAPIKey:           os.Getenv("TOPSMM_API_KEY"),
+		SMMAPIURL:           getEnv("TOPSMM_API_URL", "https://topsmm.in/api/v2"),
+		SmmCurrency:         getEnv("SMM_CURRENCY", "USD"),
+		UsdToInr:            getEnvFloat("USD_TO_INR", 83.0),
+		CryptomusMerchantID: os.Getenv("CRYPTOMUS_MERCHANT_ID"),
+		CryptomusAPIKey:     os.Getenv("CRYPTOMUS_API_KEY"),
 	}
 }
 

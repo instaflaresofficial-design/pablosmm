@@ -99,9 +99,11 @@ export function RewriteDialog({ open, onOpenChange, service, onSuccess }: Rewrit
     // Reset form when service changes
     React.useEffect(() => {
         if (service) {
-            const multiplier = service.ratePer1000 && service.baseRatePer1000
-                ? parseFloat((service.ratePer1000 / service.baseRatePer1000).toFixed(4))
-                : 1.2;
+            const multiplier = service.originalMultiplier && service.originalMultiplier > 0
+                ? service.originalMultiplier
+                : (service.ratePer1000 && service.baseRatePer1000
+                    ? parseFloat((service.ratePer1000 / service.baseRatePer1000).toFixed(4))
+                    : 1.2);
 
             form.reset({
                 displayName: service.displayName || "",

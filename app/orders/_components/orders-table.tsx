@@ -15,6 +15,7 @@ import {
     TableRow,
 } from "@/components/admin/ui/table";
 import { getApiBaseUrl } from "@/lib/config";
+import { useAuth } from "@/components/providers/auth-provider";
 
 export interface Order {
     id: number;
@@ -35,6 +36,7 @@ interface OrdersTableProps {
 }
 
 export function OrdersTable({ orders, loading, onRefresh }: OrdersTableProps) {
+    const { convertPrice } = useAuth();
     const [cancelling, setCancelling] = useState<number | null>(null);
 
     const handleCancel = async (id: number) => {
@@ -54,7 +56,7 @@ export function OrdersTable({ orders, loading, onRefresh }: OrdersTableProps) {
             const data = await res.json();
             toast.success("Order canceled successfully");
             if (data.newBalance !== undefined) {
-                toast.info(`Refunded. New Balance: ₹${data.newBalance}`);
+                toast.info(`Refunded. New Balance: ${convertPrice(data.newBalance)}`);
             }
             onRefresh();
         } catch (error: any) {
@@ -119,7 +121,7 @@ export function OrdersTable({ orders, loading, onRefresh }: OrdersTableProps) {
                                         {order.link}
                                     </a>
                                 </TableCell>
-                                <TableCell className="font-bold text-xs">₹{order.charge.toFixed(4)}</TableCell>
+                                <TableCell className="font-bold text-xs">{convertPrice(order.charge)}</TableCell>
                                 <TableCell className="text-xs">{order.startCount}</TableCell>
                                 <TableCell className="text-xs">{order.quantity}</TableCell>
                                 <TableCell className="text-xs max-w-[200px] truncate" title={order.serviceId}>

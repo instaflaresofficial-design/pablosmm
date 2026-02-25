@@ -199,33 +199,46 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 
 // Me returns the current authenticated user
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
+	// Log request details for debugging mobile issues
+	log.Printf("📱 [Me] Request from: %s | Origin: %s | User-Agent: %s",
+		r.RemoteAddr,
+		r.Header.Get("Origin"),
+		r.Header.Get("User-Agent"))
+
 	// UserID is injected by middleware
 	userID, ok := r.Context().Value("userID").(int)
 	if !ok {
+		log.Printf("❌ [Me] No userID in context - Unauthorized")
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+
+	log.Printf("🔍 [Me] Fetching user data for userID: %d", userID)
 
 	var u AdminUser // Reusing struct from users.go
 	var balanceCents int
 	var totalSpendCents int
 	var createdAtTime interface{}
+	var passwordHash string // Check if password is set
 
 	err := h.db.Pool.QueryRow(context.Background(), `
         SELECT 
-            u.id, u.name, COALESCE(u.username, ''), u.email, COALESCE(u.mobile, ''), u.role, u.created_at,
+            u.id, u.name, COALESCE(u.username, ''), u.email, COALESCE(u.mobile, ''), u.role, COALESCE(u.currency, 'USD'), u.created_at, COALESCE(u.password_hash, ''),
             COALESCE(w.balance, 0),
             (SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id),
             (SELECT COALESCE(SUM(o.amount_cents), 0) FROM orders o WHERE o.user_id = u.id)
         FROM users u
         LEFT JOIN wallets w ON u.id = w.user_id
         WHERE u.id = $1
-    `, userID).Scan(&u.ID, &u.Name, &u.Username, &u.Email, &u.Mobile, &u.Role, &createdAtTime, &balanceCents, &u.OrderCount, &totalSpendCents)
+    `, userID).Scan(&u.ID, &u.Name, &u.Username, &u.Email, &u.Mobile, &u.Role, &u.Currency, &createdAtTime, &passwordHash, &balanceCents, &u.OrderCount, &totalSpendCents)
 
 	if err != nil {
+		log.Printf("❌ [Me] Error fetching user %d: %v", userID, err)
 		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
+
+	log.Printf("✅ [Me] Successfully fetched user %d (%s)", userID, u.Email)
 
 	u.Balance = float64(balanceCents) / 100.0
 	u.TotalSpend = float64(totalSpendCents) / 100.0
@@ -252,19 +265,25 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		// Don't fail the response, just zero stats
 	}
 
+	// Get current FX rate
+	fxRate := h.fx.GetUsdToInr()
+
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"user": map[string]interface{}{
-			"id":         u.ID,
-			"name":       u.Name,
-			"username":   u.Username,
-			"email":      u.Email,
-			"mobile":     u.Mobile,
-			"role":       u.Role,
-			"balance":    u.Balance,
-			"totalSpend": u.TotalSpend,
-			"orderCount": u.OrderCount,
-			"stats":      stats,
+			"id":          u.ID,
+			"name":        u.Name,
+			"username":    u.Username,
+			"email":       u.Email,
+			"mobile":      u.Mobile,
+			"role":        u.Role,
+			"currency":    u.Currency,
+			"balance":     u.Balance,
+			"totalSpend":  u.TotalSpend,
+			"orderCount":  u.OrderCount,
+			"stats":       stats,
+			"hasPassword": passwordHash != "",
 		},
+		"fxRate": fxRate,
 	})
 }
 
@@ -365,14 +384,16 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set Cookie with production-safe settings
-	// Set Cookie with production-safe settings
+	// For dev/mobile debugging over HTTP, we must disable Secure and use Lax
+	isProd := os.Getenv("APP_ENV") == "production"
+
 	cookie := &http.Cookie{
 		Name:     "auth_token",
 		Value:    tokenString,
 		Expires:  expirationTime,
 		HttpOnly: true,
-		Secure:   true,                  // Required for HTTPS
-		SameSite: http.SameSiteNoneMode, // Required for cross-domain
+		Secure:   isProd,               // Only true in prod
+		SameSite: http.SameSiteLaxMode, // Lax works for HTTP same-site (or proxied)
 		Path:     "/",
 	}
 
@@ -394,20 +415,25 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 // AuthMiddleware validates JWT and sets context
 func (h *Handler) AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("🔐 [AuthMiddleware] Request to %s from %s", r.URL.Path, r.RemoteAddr)
+
 		cookie, err := r.Cookie("auth_token")
 		if err != nil {
 			if err == http.ErrNoCookie {
+				log.Printf("❌ [AuthMiddleware] No auth_token cookie found")
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
 				json.NewEncoder(w).Encode(map[string]string{"error": "Unauthorized: No session cookie"})
 				return
 			}
+			log.Printf("❌ [AuthMiddleware] Cookie error: %v", err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Bad request"})
 			return
 		}
 
+		log.Printf("🍪 [AuthMiddleware] auth_token cookie found, validating...")
 		tokenStr := cookie.Value
 		claims := &Claims{}
 
@@ -416,6 +442,7 @@ func (h *Handler) AuthMiddleware(next http.Handler) http.Handler {
 		})
 
 		if err != nil {
+			log.Printf("❌ [AuthMiddleware] Token parse error: %v", err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Unauthorized: Invalid token"})
@@ -423,15 +450,79 @@ func (h *Handler) AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		if !token.Valid {
+			log.Printf("❌ [AuthMiddleware] Token is not valid")
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]string{"error": "Unauthorized: Token invalid"})
 			return
 		}
 
+		log.Printf("✅ [AuthMiddleware] Authenticated user %d (role: %s)", claims.UserID, claims.Role)
+
 		// Pass user ID to context
 		ctx := context.WithValue(r.Context(), "userID", claims.UserID)
 		ctx = context.WithValue(ctx, "userRole", claims.Role)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+type ChangePasswordReq struct {
+	OldPassword string `json:"oldPassword"`
+	NewPassword string `json:"password"` // Changed from NewPassword to password for consistency
+}
+
+// ChangePassword updates the user's password
+func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("userID").(int)
+
+	var req ChangePasswordReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.NewPassword == "" || len(req.NewPassword) < 6 {
+		http.Error(w, "New password must be at least 6 characters", http.StatusBadRequest)
+		return
+	}
+
+	// 1. Get current password hash
+	var currentHash string
+	// Handle NULL password_hash by using COALESCE or checking validity
+	err := h.db.Pool.QueryRow(context.Background(), "SELECT COALESCE(password_hash, '') FROM users WHERE id=$1", userID).Scan(&currentHash)
+	if err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	// 2. Verify old password ONLY if current hash is not empty
+	if currentHash != "" {
+		if req.OldPassword == "" {
+			http.Error(w, "Old password is required", http.StatusUnauthorized)
+			return
+		}
+		if err := bcrypt.CompareHashAndPassword([]byte(currentHash), []byte(req.OldPassword)); err != nil {
+			http.Error(w, "Incorrect old password", http.StatusUnauthorized)
+			return
+		}
+	} else {
+		// If no current password, we skip verification
+		log.Printf("User %d has no password set, allowing creation", userID)
+	}
+
+	// 3. Hash new password
+	newHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		return
+	}
+
+	// 4. Update DB
+	_, err = h.db.Pool.Exec(context.Background(), "UPDATE users SET password_hash=$1 WHERE id=$2", string(newHash), userID)
+	if err != nil {
+		http.Error(w, "Failed to update password", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Password changed successfully"})
 }

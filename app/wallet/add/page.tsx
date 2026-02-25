@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, ArrowLeft, Clock, CheckCircle } from "lucide-react";
 
 export default function WalletAddPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, currencySymbol } = useAuth();
   const router = useRouter();
 
   // Steps: 'amount' | 'method' | 'pay' | 'success'
@@ -111,7 +111,7 @@ export default function WalletAddPage() {
           </div>
 
           <div className="amount-display">
-            <span className="rupee">₹</span>
+            <span className="rupee">{currencySymbol}</span>
             <span className="amount">{formattedAmount || "0"}</span>
             <span className={`caret ${rawAmount ? "show" : ""}`} />
           </div>
@@ -176,8 +176,8 @@ export default function WalletAddPage() {
 
           <div style={{ textAlign: 'center', marginTop: '40px', marginBottom: '24px' }}>
             <p style={{ textTransform: 'uppercase', fontSize: '0.7rem', color: '#888', letterSpacing: '1px' }}>Total Payable</p>
-            <h3 style={{ fontSize: '2.5rem', fontFamily: 'GB', margin: '4px 0' }}>₹{formattedAmount}</h3>
-            {method === 'USDT' && <p style={{ fontSize: '0.8rem', color: '#eab308' }}>1 USD ≈ ₹92</p>}
+            <h3 style={{ fontSize: '2.5rem', fontFamily: 'GB', margin: '4px 0' }}>{currencySymbol}{formattedAmount}</h3>
+            {method === 'USDT' && <p style={{ fontSize: '0.8rem', color: '#eab308' }}>1 USD ≈ {currencySymbol}92</p>}
           </div>
 
           <div style={{ background: '#fff', padding: '12px', borderRadius: '12px', marginBottom: '24px' }}>
@@ -223,7 +223,7 @@ export default function WalletAddPage() {
           </div>
           <h2 style={{ fontSize: '1.5rem', fontFamily: 'GB', marginBottom: '8px' }}>Request Submitted</h2>
           <p style={{ color: '#888', maxWidth: '280px', marginBottom: '32px', lineHeight: '1.5' }}>
-            Your deposit of <strong>₹{formattedAmount}</strong> is under review. Please allow 10-30 minutes for approval.
+            Your deposit of <strong>{currencySymbol}{formattedAmount}</strong> is under review. Please allow 10-30 minutes for approval.
           </p>
           <Link href="/wallet" style={{ background: '#222', color: '#fff', padding: '16px 32px', borderRadius: '100px', textDecoration: 'none', fontFamily: 'GB' }}>
             Back to Wallet

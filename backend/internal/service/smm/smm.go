@@ -47,7 +47,8 @@ type NormalizedSmmService struct {
 	Category            string      `json:"category"`
 	ProviderCategory    string      `json:"providerCategory"`
 	RatePer1000         float64     `json:"ratePer1000"`
-	BaseRatePer1000     float64     `json:"baseRatePer1000"`
+	BaseRatePer1000     float64     `json:"baseRatePer1000"`    // Raw cost from provider in USD
+	OriginalMultiplier  float64     `json:"originalMultiplier"` // The raw rate_multiplier from the DB
 	ProviderCurrency    string      `json:"providerCurrency"`
 	DisplayName         string      `json:"displayName,omitempty"`
 	DisplayDescription  string      `json:"displayDescription,omitempty"`
@@ -287,6 +288,7 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 			baseRatePer1000 = baseRatePer1000 / s.fx.GetUsdToInr()
 		}
 		ratePer1000 := baseRatePer1000 * 2.5 // Default 2.5x multiplier (150% profit)
+		originalMultiplier := 0.0
 
 		// Apply Overrides
 		displayName := ""
@@ -343,7 +345,8 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 				displayDescription = ov.DisplayDesc
 			}
 			if ov.Multiplier > 0 {
-				ratePer1000 = ratePer1000 * ov.Multiplier
+				ratePer1000 = baseRatePer1000 * ov.Multiplier
+				originalMultiplier = ov.Multiplier
 			}
 			if ov.Tags != nil {
 				tags = ov.Tags
@@ -481,6 +484,7 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 			DisplayDescription:  displayDescription,
 			BaseRatePer1000:     baseRatePer1000,
 			RatePer1000:         ratePer1000,
+			OriginalMultiplier:  originalMultiplier,
 			ProviderCurrency:    s.cfg.SmmCurrency,
 			Min:                 int(toNumber(raw.Min)),
 			Max:                 int(toNumber(raw.Max)),

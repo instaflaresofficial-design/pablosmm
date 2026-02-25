@@ -42,8 +42,8 @@ try {
     console.error(`❌ Failed to set up watcher: ${err.message}`);
 }
 
-// Start the Next.js Dev Server
-const next = spawn('next', ['dev'], {
+// Start the Next.js Dev Server (bind to all network interfaces for mobile access)
+const next = spawn('next', ['dev', '-H', '0.0.0.0'], {
     stdio: 'inherit',
     shell: true
 });
