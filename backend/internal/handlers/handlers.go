@@ -132,7 +132,14 @@ func (h *Handler) GetProfile(w http.ResponseWriter, r *http.Request) {
 
 	// Fetch total spend as well
 	var totalSpendCents int
-	h.db.Pool.QueryRow(context.Background(), "SELECT COALESCE(SUM(amount_cents), 0) FROM orders WHERE user_id = $1", user.ID).Scan(&totalSpendCents)
+	h.db.Pool.QueryRow(context.Background(), `
+		SELECT COALESCE(SUM(
+			CASE 
+				WHEN status IN ('failed', 'canceled', 'refunded') THEN 0 
+				ELSE amount_cents - COALESCE(refunded_amount, 0) 
+			END
+		), 0) FROM orders WHERE user_id = $1
+	`, user.ID).Scan(&totalSpendCents)
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"user": map[string]interface{}{
@@ -402,10 +409,8 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 			defer rtx.Rollback(context.Background())
 			// 1. Credit Wallet back
 			_, _ = rtx.Exec(context.Background(), "UPDATE wallets SET balance = balance + $1 WHERE user_id = $2", amountCents, userID)
-			// 2. Mark Order Failed
-			failReason := fmt.Sprintf("Provider Error: %s", providerError)
-			_, _ = rtx.Exec(context.Background(), "UPDATE orders SET status = 'failed', provider_resp = $1 WHERE id = $2",
-				fmt.Sprintf(`{"error": "%s"}`, failReason), orderID)
+			// 2. Completely delete the order so it doesn't clutter history since it failed instantly
+			_, _ = rtx.Exec(context.Background(), "DELETE FROM orders WHERE id = $1", orderID)
 
 			rtx.Commit(context.Background())
 		}

@@ -63,7 +63,12 @@ func (h *Handler) GetUsers(w http.ResponseWriter, r *http.Request) {
 			u.id, u.name, COALESCE(u.username, ''), u.email, COALESCE(u.mobile, ''), u.role, COALESCE(u.currency, 'USD'), u.created_at,
 			COALESCE(w.balance, 0),
 			(SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id),
-			(SELECT COALESCE(SUM(o.amount_cents), 0) FROM orders o WHERE o.user_id = u.id)
+			(SELECT COALESCE(SUM(
+				CASE 
+					WHEN o.status IN ('failed', 'canceled', 'refunded') THEN 0 
+					ELSE o.amount_cents - COALESCE(o.refunded_amount, 0) 
+				END
+			), 0) FROM orders o WHERE o.user_id = u.id)
 		FROM users u
 		LEFT JOIN wallets w ON u.id = w.user_id
 		WHERE 1=1
@@ -135,7 +140,12 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 			u.id, u.name, COALESCE(u.username, ''), u.email, COALESCE(u.mobile, ''), u.role, COALESCE(u.currency, 'USD'), u.created_at,
 			COALESCE(w.balance, 0),
 			(SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id),
-			(SELECT COALESCE(SUM(o.amount_cents), 0) FROM orders o WHERE o.user_id = u.id)
+			(SELECT COALESCE(SUM(
+				CASE 
+					WHEN o.status IN ('failed', 'canceled', 'refunded') THEN 0 
+					ELSE o.amount_cents - COALESCE(o.refunded_amount, 0) 
+				END
+			), 0) FROM orders o WHERE o.user_id = u.id)
 		FROM users u
 		LEFT JOIN wallets w ON u.id = w.user_id
 		WHERE u.id = $1
