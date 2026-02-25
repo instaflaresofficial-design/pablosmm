@@ -169,7 +169,8 @@ func (h *Handler) GetAdminOrders(w http.ResponseWriter, r *http.Request) {
 			o.remains,
 			o.start_count,
 			o.link,
-			u.email
+			u.email,
+			COALESCE(o.refunded_amount, 0)
 		FROM orders o
 		LEFT JOIN service_overrides so ON (o.service_id = so.source_service_id OR split_part(o.service_id, ':', 2) = so.source_service_id)
 		JOIN users u ON o.user_id = u.id
@@ -201,24 +202,25 @@ func (h *Handler) GetAdminOrders(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	type AdminOrderRes struct {
-		ID          int     `json:"id"`
-		ServiceID   string  `json:"serviceId"`
-		DisplayID   string  `json:"displayId"`
-		DisplayName string  `json:"serviceName"`
-		UserEmail   string  `json:"userEmail"`
-		Amount      float64 `json:"charge"`
-		Quantity    int     `json:"quantity"`
-		Status      string  `json:"status"`
-		Date        string  `json:"date"`
-		Link        string  `json:"link"`
-		Remains     int     `json:"remains"`
-		StartCount  int     `json:"startCount"`
+		ID             int     `json:"id"`
+		ServiceID      string  `json:"serviceId"`
+		DisplayID      string  `json:"displayId"`
+		DisplayName    string  `json:"serviceName"`
+		UserEmail      string  `json:"userEmail"`
+		Amount         float64 `json:"charge"`
+		Quantity       int     `json:"quantity"`
+		Status         string  `json:"status"`
+		Date           string  `json:"date"`
+		Link           string  `json:"link"`
+		Remains        int     `json:"remains"`
+		StartCount     int     `json:"startCount"`
+		RefundedAmount float64 `json:"refundedAmount"`
 	}
 
 	orders := []AdminOrderRes{}
 	for rows.Next() {
 		var o AdminOrderRes
-		var amtCents int
+		var amtCents, refundedCents int
 		var tm time.Time
 		var provID *string
 		var dispIDRaw, dispNameRaw, remainsRaw, startCountRaw, linkRaw, emailRaw interface{}
@@ -236,12 +238,15 @@ func (h *Handler) GetAdminOrders(w http.ResponseWriter, r *http.Request) {
 			&remainsRaw,
 			&startCountRaw,
 			&linkRaw,
-			&emailRaw); err != nil {
+			&emailRaw,
+			&refundedCents,
+		); err != nil {
 			log.Printf("Scan error order %d: %v", o.ID, err)
 			continue
 		}
 
 		o.Amount = float64(amtCents) / 100.0
+		o.RefundedAmount = float64(refundedCents) / 100.0
 		o.Date = tm.Format(time.RFC3339)
 		o.Link = anyString(linkRaw)
 		o.Remains = anyInt(remainsRaw)

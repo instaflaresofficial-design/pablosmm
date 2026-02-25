@@ -41,7 +41,7 @@ export function OrderDetailsDialog({ order, open, onOpenChange, onSuccess }: Ord
 
     if (!order) return null;
 
-    const maxRefundable = order.charge || 0;
+    const maxRefundable = (order.charge || 0) - (order.refundedAmount || 0);
 
     const handleRefundClick = () => {
         setRefundAmount(maxRefundable.toFixed(2));
@@ -136,7 +136,7 @@ export function OrderDetailsDialog({ order, open, onOpenChange, onSuccess }: Ord
                     </div>
 
                     <DialogFooter className="flex-col sm:justify-between sm:flex-row gap-2">
-                        {(order.status !== 'canceled' && order.status !== 'failed' && order.status !== 'refunded') && (
+                        {(maxRefundable > 0) && (
                             <Button
                                 variant="destructive"
                                 onClick={handleRefundClick}

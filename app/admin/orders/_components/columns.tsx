@@ -15,6 +15,7 @@ export type AdminOrder = {
     status: string;
     date: string;
     link: string;
+    refundedAmount?: number;
 };
 
 export const columns: ColumnDef<AdminOrder>[] = [
