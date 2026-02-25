@@ -19,10 +19,15 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
+    // If we're on Vercel (production), ALWAYS use the Render backend. 
+    // This fixes the 404 Google Auth DNS private IP error without needing Vercel env configs.
+    const isProd = process.env.NODE_ENV === 'production';
+    const backendUrl = isProd ? 'https://pablosmm.onrender.com' : (process.env.BACKEND_URL || 'http://localhost:8080');
+    
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.BACKEND_URL || 'http://localhost:8080'}/api/:path*`,
+        destination: `${backendUrl}/api/:path*`,
       },
     ];
   },
