@@ -8,7 +8,7 @@ import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 
 export default function Page() {
-  const { user, loading, convertPrice } = useAuth();
+  const { user, loading, convertPrice, refreshUser } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -16,6 +16,11 @@ export default function Page() {
       router.push('/login');
     }
   }, [user, loading, router]);
+
+  // Refresh user data on mount to get latest balance (especially after auto-verify)
+  useEffect(() => {
+    refreshUser();
+  }, []);
 
   if (loading) {
     return (

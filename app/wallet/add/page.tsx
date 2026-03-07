@@ -53,7 +53,7 @@ export default function WalletAddPage() {
             setStep('success');
             toast.success('Payment verified automatically!');
             clearInterval(pollInterval);
-            setTimeout(() => router.push('/wallet'), 2500);
+            setTimeout(() => router.push('/wallet?r=' + Date.now()), 2500);
           }
         }
       } catch {
