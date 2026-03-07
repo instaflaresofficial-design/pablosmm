@@ -327,11 +327,16 @@ func (h *Handler) AutoVerifyDeposit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 5b. Update request status + set the UTR
+	txnID := notif.UTR
+	if txnID == "" {
+		// Generate unique auto-verify transaction ID when no UTR available
+		txnID = fmt.Sprintf("auto_%d_%d", time.Now().UnixMilli(), reqID)
+	}
 	_, err = tx.Exec(ctx, `
 		UPDATE wallet_requests
 		SET status='approved', transaction_id=$1, updated_at=NOW()
 		WHERE id=$2
-	`, notif.UTR, reqID)
+	`, txnID, reqID)
 	if err != nil {
 		log.Printf("[UPI-NOTIFY] Failed to update request: %v", err)
 		http.Error(w, "Failed to update", http.StatusInternalServerError)
