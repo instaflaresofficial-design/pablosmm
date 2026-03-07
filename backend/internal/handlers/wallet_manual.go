@@ -224,7 +224,20 @@ type UPINotification struct {
 func (h *Handler) AutoVerifyDeposit(w http.ResponseWriter, r *http.Request) {
 	// 1. Validate API key
 	apiKey := r.Header.Get("X-Notify-Key")
-	if apiKey == "" || apiKey != h.cfg.UPINotifyKey {
+	expectedKey := h.cfg.UPINotifyKey
+
+	// Debug: log key comparison (safely, only first/last 4 chars)
+	safeKey := func(k string) string {
+		if len(k) <= 8 {
+			return "***"
+		}
+		return k[:4] + "..." + k[len(k)-4:]
+	}
+	log.Printf("[UPI-NOTIFY] Auth check: received=%s expected=%s match=%v",
+		safeKey(apiKey), safeKey(expectedKey), apiKey == expectedKey)
+
+	if apiKey == "" || apiKey != expectedKey {
+		log.Printf("[UPI-NOTIFY] 401 Unauthorized — key mismatch")
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
