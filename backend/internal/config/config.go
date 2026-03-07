@@ -15,6 +15,8 @@ type Config struct {
 	UsdToInr            float64
 	CryptomusMerchantID string
 	CryptomusAPIKey     string
+	UPINotifyKey        string
+	UPIIDs              string // Comma-separated UPI IDs for QR rotation
 }
 
 func Load() *Config {
@@ -28,6 +30,8 @@ func Load() *Config {
 		UsdToInr:            getEnvFloat("USD_TO_INR", 83.0),
 		CryptomusMerchantID: os.Getenv("CRYPTOMUS_MERCHANT_ID"),
 		CryptomusAPIKey:     os.Getenv("CRYPTOMUS_API_KEY"),
+		UPINotifyKey:        os.Getenv("UPI_NOTIFY_KEY"),
+		UPIIDs:              getEnv("UPI_IDS", ""),
 	}
 }
 

@@ -99,6 +99,12 @@ export default function Page() {
         </div>
         <Link href="/wallet/add" style={{ width: '100%' }}><button>Add Money</button></Link>
       </div>
+      <div className="recent-transactions">
+        <div className="recent-title">
+          <p>Recent<br />Transactions</p>
+        </div>
+        <Link href="/wallet/transactions">See All</Link>
+      </div>
     </div>
   )
 }

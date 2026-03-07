@@ -97,5 +97,31 @@ func main() {
 		}
 	}
 
+	// Step 12: UPI Auto-Verify System
+	log.Println("Applying UPI Auto-Verify migrations...")
+	queries = []string{
+		"ALTER TABLE wallet_requests ADD COLUMN IF NOT EXISTS unique_amount DECIMAL(15, 2)",
+		"ALTER TABLE wallet_requests ALTER COLUMN transaction_id DROP NOT NULL",
+		`CREATE TABLE IF NOT EXISTS upi_notifications (
+            id SERIAL PRIMARY KEY,
+            amount DECIMAL(15, 2) NOT NULL,
+            utr VARCHAR(255),
+            sender_upi VARCHAR(255),
+            raw_text TEXT,
+            matched_request_id INT REFERENCES wallet_requests(id),
+            status VARCHAR(20) DEFAULT 'unmatched' CHECK (status IN ('unmatched', 'matched', 'ignored')),
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )`,
+		"CREATE INDEX IF NOT EXISTS idx_upi_notifications_status ON upi_notifications(status)",
+		"CREATE INDEX IF NOT EXISTS idx_wallet_requests_unique_amount ON wallet_requests(unique_amount)",
+	}
+
+	for _, q := range queries {
+		_, err = pool.Exec(ctx, q)
+		if err != nil {
+			log.Fatalf("Failed to execute query: %s\nError: %v", q, err)
+		}
+	}
+
 	log.Println("Migration applied successfully!")
 }

@@ -50,3 +50,6 @@ test.js
 next-env.d.ts
 
 backend/audit.go
+
+upi-listener/
+backend/server.exe

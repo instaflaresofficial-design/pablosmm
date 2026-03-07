@@ -65,6 +65,9 @@ func New(cfg *config.Config) *http.Server {
 		r.Get("/health", h.HealthCheck)
 		r.Post("/webhooks/cryptomus", h.CryptomusWebhook)
 
+		// UPI Notification Endpoint (API key auth, not user JWT)
+		r.Post("/notify/upi", h.AutoVerifyDeposit)
+
 		// Public Auth
 		r.Post("/auth/register", h.Register)
 		r.Post("/auth/login", h.Login)
@@ -77,6 +80,8 @@ func New(cfg *config.Config) *http.Server {
 			r.Use(h.AuthMiddleware)
 			r.Get("/auth/me", h.Me)
 			r.Post("/wallet/deposit", h.RequestDeposit)
+			r.Put("/wallet/deposit/utr", h.UpdateDepositUTR)
+			r.Get("/wallet/deposit/status", h.GetDepositStatus)
 			r.Post("/wallet/cryptomus/create", h.CreateCryptomusPayment)
 			r.Get("/orders", h.GetOrders)
 			r.Post("/orders/{id}/cancel", h.CancelOrder)
