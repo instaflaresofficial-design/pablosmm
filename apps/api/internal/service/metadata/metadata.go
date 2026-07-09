@@ -100,6 +100,18 @@ func (s *Service) Fetch(targetURL string) (*Metadata, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("Metadata fetch warning: %s returned %d", targetURL, resp.StatusCode)
+
+		// Fallback to Microlink API if blocked by Instagram (e.g. 429 Too Many Requests or 302 redirect to login)
+		if strings.Contains(targetURL, "instagram.com") && (resp.StatusCode == 429 || resp.StatusCode == 302) {
+			log.Printf("[Metadata] Falling back to Microlink API for %s", targetURL)
+			if fallbackMeta, err := s.fetchMicrolink(targetURL); err == nil && fallbackMeta.Title != "" {
+				s.saveCache(targetURL, fallbackMeta)
+				return fallbackMeta, nil
+			} else {
+				log.Printf("[Metadata] Microlink fallback failed or returned empty: %v", err)
+			}
+		}
+
 		// If 404 or 429, we might want to return partial data or error
 		if resp.StatusCode == 404 {
 			return nil, fmt.Errorf("page not found")
@@ -324,5 +336,41 @@ func (s *Service) fetchInstagramOEmbed(targetURL string) (*Metadata, error) {
 		Description: "By " + oembedData.AuthorName,
 		Image:       oembedData.ThumbnailURL,
 	}, nil
+}
+
+func (s *Service) fetchMicrolink(targetURL string) (*Metadata, error) {
+	apiURL := "https://api.microlink.io/?url=" + url.QueryEscape(targetURL)
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil { return nil, err }
+	
+	resp, err := s.client.Do(req)
+	if err != nil { return nil, err }
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK { return nil, fmt.Errorf("status %d", resp.StatusCode) }
+
+	var result struct {
+		Data struct {
+			Title       string `json:"title"`
+			Description string `json:"description"`
+			Image       struct {
+				URL string `json:"url"`
+			} `json:"image"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil { return nil, err }
+
+	meta := &Metadata{
+		Title:       result.Data.Title,
+		Description: result.Data.Description,
+		Image:       result.Data.Image.URL,
+	}
+	
+	// Try parsing stats from microlink description if possible
+	if meta.Description != "" {
+		meta.Followers, meta.Following, meta.Posts, meta.Likes, meta.Comments, meta.Views = parseInstagramStats(meta.Description)
+	}
+
+	return meta, nil
 }
 
