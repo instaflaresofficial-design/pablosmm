@@ -1,8 +1,6 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
+# ── Dependencies ──────────────────────────────────────────────
+node_modules/
+.pnp
 .pnp.*
 .yarn/*
 !.yarn/patches
@@ -10,46 +8,56 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
+# ── Build output ─────────────────────────────────────────────
+.next/
+out/
+build/
 
-# next.js
-/.next/
-/out/
+# ── Environment files ────────────────────────────────────────
+.env
+.env.local
+.env*.local
 
-# production
-/build
-
-# misc
+# ── OS / Editor ──────────────────────────────────────────────
 .DS_Store
+Thumbs.db
 *.pem
+.vscode/
+.idea/
 
-# debug
+# ── Debug logs ───────────────────────────────────────────────
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
-
-# Backend environment files (NEVER commit)
-backend/.env
-backend/.env.local
-
-# Test files with potential secrets
-test.js
-*.test.local.js
-*.test.local.ts
-
-# vercel
-.vercel
-
-# typescript
+# ── TypeScript ───────────────────────────────────────────────
 *.tsbuildinfo
 next-env.d.ts
 
-backend/audit.go
+# ── Go backend ───────────────────────────────────────────────
+*.exe
+*.log
+apps/api/server
 
+# ── Data files (fetched, not source) ─────────────────────────
+services.json
+services_all.json
+provider_topsmm_services.json
+*.generated.ts
+
+# ── Binaries & tools ────────────────────────────────────────
+*.jar
+*.exe
+
+# ── Test / temp files ────────────────────────────────────────
+test.js
+*.test.local.js
+*.test.local.ts
+tmp_*
+
+# ── Vercel ───────────────────────────────────────────────────
+.vercel
+
+# ── Android / UPI listener ───────────────────────────────────
 upi-listener/
-backend/server.exe
