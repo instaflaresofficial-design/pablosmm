@@ -1,9 +1,10 @@
 interface SearchProps {
   value?: string;
   onChange?: (v: string) => void;
+  onFilterClick?: () => void;
 }
 
-const SearchContainer: React.FC<SearchProps> = ({ value = '', onChange }) => {
+const SearchContainer: React.FC<SearchProps> = ({ value = '', onChange, onFilterClick }) => {
   return (
     <div className="search-container">
       <div className="search-wrapper">
@@ -17,7 +18,7 @@ const SearchContainer: React.FC<SearchProps> = ({ value = '', onChange }) => {
           value={value}
           onChange={(e) => onChange?.(e.target.value)}
         />
-        <button className="control" aria-label="Filters">
+        <button className="control" aria-label="Filters" onClick={onFilterClick}>
           <img src="/filter.png" alt="filters" className="control-icon" />
         </button>
       </div>

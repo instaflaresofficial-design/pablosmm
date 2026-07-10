@@ -5,7 +5,7 @@ import ServiceInfoPanel from '@/components/order/ServiceInfo'
 import Preview from '@/components/preview/Preview'
 import { useNormalizedServices } from '@/lib/useServices'
 import { useSearchParams } from 'next/navigation'
-import React, { Suspense, useMemo, useState } from 'react'
+import React, { Suspense, useMemo, useState, startTransition } from 'react'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { toast } from 'sonner'
 import type { Platform, ServiceType, Variant, NormalizedSmmService } from '@/types/smm'
@@ -15,6 +15,36 @@ import ServiceCard from '@/components/order/ServiceCard';
 import Image from 'next/image';
 import { useMetadata } from '@/lib/useMetadata';
 import { getApiBaseUrl } from '@/lib/config';
+import { createPortal } from 'react-dom';
+import { getServiceTags } from '@/lib/serviceTags';
+
+const GEO_OPTIONS = [
+  { value: 'All', label: 'All Regions' },
+  { value: 'Indian', label: 'Indian' },
+  { value: 'USA', label: 'USA' },
+  { value: 'Global', label: 'Global' },
+];
+
+const SPEED_OPTIONS = [
+  { value: 'All', label: 'All Speeds' },
+  { value: 'Instant', label: 'Instant' },
+  { value: 'Fast', label: 'Fast' },
+  { value: 'Normal Speed', label: 'Normal Speed' },
+];
+
+const REFILL_OPTIONS = [
+  { value: 'All', label: 'All Refills' },
+  { value: 'Available', label: 'Available' },
+  { value: 'No Refill', label: 'No Refill' },
+];
+
+const DROP_OPTIONS = [
+  { value: 'All', label: 'All Drop Types' },
+  { value: 'Non Drop', label: 'Non Drop' },
+  { value: 'May Drop', label: 'May Drop' },
+];
+
+type FilterType = 'geo' | 'speed' | 'refill' | 'drop' | 'all' | null;
 
 // Hook that reads URL search params. Must be used within a <Suspense> boundary in Next.js app router.
 function useSelectionFromQuery() {
@@ -44,6 +74,18 @@ const SummaryContent = () => {
   // Modal state for Service Details
   const [selectedService, setSelectedService] = useState<NormalizedSmmService | null>(null);
 
+  // Filter Drawer State
+  const [activeDrawer, setActiveDrawer] = useState<FilterType>(null);
+  const [geoFilter, setGeoFilter] = useState('All');
+  const [speedFilter, setSpeedFilter] = useState('All');
+  const [refillFilter, setRefillFilter] = useState('All');
+  const [dropFilter, setDropFilter] = useState('All');
+  const [mounted, setMounted] = useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const filtered = useMemo(() => {
     const bySearch = search.trim().toLowerCase();
     let list;
@@ -55,6 +97,19 @@ const SummaryContent = () => {
     } else {
       list = all.filter((s) => s.platform === platform && s.type === service && (variant === 'any' || s.variant === variant));
     }
+
+    // Apply Drawer Filters
+    if (geoFilter !== 'All' || speedFilter !== 'All' || refillFilter !== 'All' || dropFilter !== 'All') {
+      list = list.filter(s => {
+        const tags = getServiceTags(s);
+        if (geoFilter !== 'All' && tags.geo !== geoFilter) return false;
+        if (speedFilter !== 'All' && tags.speed !== speedFilter) return false;
+        if (refillFilter !== 'All' && tags.refill !== refillFilter) return false;
+        if (dropFilter !== 'All' && tags.drop !== dropFilter) return false;
+        return true;
+      });
+    }
+
     const searched = list;
     if (category === 'cheapest') return [...searched].sort((a, b) => a.ratePer1000 - b.ratePer1000);
     if (category === 'premium') return [...searched].sort((a, b) => b.ratePer1000 - a.ratePer1000);
@@ -64,7 +119,7 @@ const SummaryContent = () => {
       const timeA = a.averageTime ?? 9999; const timeB = b.averageTime ?? 9999;
       return refillScore || priceScore || (timeA - timeB);
     });
-  }, [all, platform, service, variant, search, category]);
+  }, [all, platform, service, variant, search, category, geoFilter, speedFilter, refillFilter, dropFilter]);
 
   const selected = filtered[Math.min(selIndex, Math.max(filtered.length - 1, 0))] || null;
   const min = selected?.min || 50;
@@ -211,6 +266,105 @@ const SummaryContent = () => {
     }
   }
 
+  const handleSelect = (value: string, type: 'geo' | 'speed' | 'refill' | 'drop') => {
+    if (type === 'geo') setGeoFilter(value);
+    if (type === 'speed') setSpeedFilter(value);
+    if (type === 'refill') setRefillFilter(value);
+    if (type === 'drop') setDropFilter(value);
+  };
+
+  const renderFilterDrawer = () => {
+    if (!mounted || !activeDrawer) return null;
+
+    return createPortal(
+      <>
+        <div className="filter-overlay" onClick={() => setActiveDrawer(null)} />
+        <div className="filter-drawer">
+          <div className="drawer-handle" />
+          <div className="drawer-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3>Filters</h3>
+            {(geoFilter !== 'All' || speedFilter !== 'All' || refillFilter !== 'All' || dropFilter !== 'All') && (
+              <button 
+                onClick={() => { setGeoFilter('All'); setSpeedFilter('All'); setRefillFilter('All'); setDropFilter('All'); }}
+                style={{ background: 'none', border: 'none', color: '#a890ff', fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'GM' }}
+              >
+                Clear All
+              </button>
+            )}
+          </div>
+          <div className="drawer-sections">
+            <div className="drawer-filter-section">
+              <h4>Geo (Region)</h4>
+              <div className="filter-chips">
+                {GEO_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    className={`filter-chip ${geoFilter === opt.value ? 'selected' : ''}`}
+                    onClick={() => handleSelect(opt.value, 'geo')}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="drawer-filter-section">
+              <h4>Speed</h4>
+              <div className="filter-chips">
+                {SPEED_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    className={`filter-chip ${speedFilter === opt.value ? 'selected' : ''}`}
+                    onClick={() => handleSelect(opt.value, 'speed')}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="drawer-filter-section">
+              <h4>Refill</h4>
+              <div className="filter-chips">
+                {REFILL_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    className={`filter-chip ${refillFilter === opt.value ? 'selected' : ''}`}
+                    onClick={() => handleSelect(opt.value, 'refill')}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="drawer-filter-section">
+              <h4>Drop / Non Drop</h4>
+              <div className="filter-chips">
+                {DROP_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    className={`filter-chip ${dropFilter === opt.value ? 'selected' : ''}`}
+                    onClick={() => handleSelect(opt.value, 'drop')}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="drawer-footer">
+              <button className="apply-btn" onClick={() => setActiveDrawer(null)}>
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      </>,
+      document.body
+    );
+  };
+
   return (
     <div className='summary-container'>
 
@@ -253,7 +407,7 @@ const SummaryContent = () => {
           min={min}
           max={max}
           pricePerUnit={pricePerUnit}
-          onChange={setQuantity}
+          onChange={(val) => startTransition(() => setQuantity(val))}
           activeCategory={category}
           onCategoryChange={setCategory}
           onModeChange={setSliderMode}
@@ -268,41 +422,38 @@ const SummaryContent = () => {
       </div>
 
       <div className="service-list-container">
-        <SearchContainer value={search} onChange={setSearch} />
-        
-        <div className="category-tabs">
-          <button className={`tab-btn ${category === 'recommended' ? 'active' : ''}`} onClick={() => setCategory('recommended')}>Best Rated</button>
-          <button className={`tab-btn ${category === 'cheapest' ? 'active' : ''}`} onClick={() => setCategory('cheapest')}>Cheapest</button>
-          <button className={`tab-btn ${category === 'premium' ? 'active' : ''}`} onClick={() => setCategory('premium')}>Premium</button>
+        <div style={{ display: selectedService ? 'none' : 'block' }}>
+          <SearchContainer value={search} onChange={setSearch} onFilterClick={() => setActiveDrawer('all')} />
+          
+          <div className="category-tabs">
+            <button className={`tab-btn ${category === 'recommended' ? 'active' : ''}`} onClick={() => setCategory('recommended')}>Best Rated</button>
+            <button className={`tab-btn ${category === 'cheapest' ? 'active' : ''}`} onClick={() => setCategory('cheapest')}>Cheapest</button>
+            <button className={`tab-btn ${category === 'premium' ? 'active' : ''}`} onClick={() => setCategory('premium')}>Premium</button>
+          </div>
+
+          <div className="showing-label">
+            <span>Showing <strong>{filtered.length}</strong> services</span>
+          </div>
+
+          <div className="services-list">
+            {filtered.map((s, idx) => (
+              <ServiceCard 
+                key={s.id} 
+                service={s} 
+                quantity={quantity} 
+                mode={sliderMode}
+                budgetUsd={budgetUsd}
+                link={link} 
+                isSelected={idx === selIndex}
+                onSelect={handleSelectService}
+                onViewDetails={handleViewDetails} 
+              />
+            ))}
+          </div>
         </div>
 
-        <div className="showing-label">
-          <span>Showing <strong>{filtered.length}</strong> services</span>
-        </div>
-
-        <div className="services-list">
-          {filtered.map((s, idx) => (
-            <ServiceCard 
-              key={s.id} 
-              service={s} 
-              quantity={quantity} 
-              mode={sliderMode}
-              budgetUsd={budgetUsd}
-              link={link} 
-              isSelected={idx === selIndex}
-              onSelect={handleSelectService}
-              onViewDetails={handleViewDetails} 
-            />
-          ))}
-        </div>
-      </div>
-
-      {selectedService && (
-        <div className="service-modal-overlay">
-          <div className="service-modal-content">
-            <button className="close-btn" onClick={() => setSelectedService(null)}>
-              <Image src="/icons/close.png" alt="Close" width={24} height={24} />
-            </button>
+        {selectedService && (
+          <div className="service-details-inline">
             <ServiceInfoPanel
               services={filtered}
               index={selIndex}
@@ -312,20 +463,11 @@ const SummaryContent = () => {
               }}
               activeCategory={category}
               onCategoryChange={setCategory}
+              onClose={() => setSelectedService(null)}
             />
-            <div className="order-actions" style={{ marginTop: '16px' }}>
-              <button
-                className="btn-order"
-                onClick={() => { if (!ordering) handleOrder(); }}
-                disabled={ordering}
-                style={{ width: '100%', padding: '16px', background: '#e1fb53', color: '#000', borderRadius: '30px', fontFamily: 'GSB', fontSize: '1.1rem', cursor: 'pointer', border: 'none' }}
-              >
-                {ordering ? 'Ordering…' : 'Place Order'}
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <ConfirmModal
         open={confirmOpen}
@@ -335,6 +477,7 @@ const SummaryContent = () => {
         onConfirm={doConfirmedOrder}
         onCancel={() => setConfirmOpen(false)}
       />
+      {renderFilterDrawer()}
     </div>
   )
 }

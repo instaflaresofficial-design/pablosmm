@@ -1,6 +1,7 @@
 import React from 'react'
 import Image from 'next/image'
 import type { NormalizedSmmService } from '@/types/smm'
+import { getServiceTags } from '@/lib/serviceTags'
 import { useCurrency } from '../layout/CurrencyProvider'
 
 interface ServiceCardProps {
@@ -31,23 +32,18 @@ export default function ServiceCard({ service, quantity, mode = 'qty', budgetUsd
     }
   }
 
-  const tags = []
-  if (service.refill) tags.push({ label: '30 Days Refill', icon: '/icons/refill-tag.png', className: 'refill' }) // Example, can be dynamic
-  if ((service as any).drop === 'non_drop') tags.push({ label: 'Non Drop', icon: '/icons/shield-tag.png', className: 'nondrop' })
-  if (service.averageTime && service.averageTime < 600) tags.push({ label: 'Instant', icon: '/icons/bolt-tag.png', className: 'instant' })
-  if (service.category?.toLowerCase().includes('indian') || service.displayName?.toLowerCase().includes('indian')) {
-    tags.push({ label: 'Indian', icon: '/icons/flag-in.png', className: 'region' })
-  }
+  const tagData = React.useMemo(() => getServiceTags(service), [service]);
+  const tags = tagData.tags;
 
   // Use platform icon
   const getIcon = () => {
     switch (service.platform) {
-      case 'instagram': return '/icons/instagram-circle.png'
-      case 'tiktok': return '/icons/tiktok-circle.png'
-      case 'youtube': return '/icons/youtube-circle.png'
-      case 'telegram': return '/icons/telegram-circle.png'
-      case 'x': return '/icons/twitter-circle.png'
-      default: return '/icons/instagram-circle.png' // fallback
+      case 'instagram': return '/orders/platforms/instagram.png'
+      case 'tiktok': return '/orders/platforms/tiktok.png'
+      case 'youtube': return '/orders/platforms/youtube.png'
+      case 'telegram': return '/orders/platforms/telegram.png'
+      case 'x': return '/orders/platforms/x.png'
+      default: return '/orders/platforms/instagram.png' // fallback
     }
   }
 
@@ -63,16 +59,16 @@ export default function ServiceCard({ service, quantity, mode = 'qty', budgetUsd
     >
       <div className="card-header">
         <div className="left">
-          <Image src={getIcon()} alt={service.platform || 'platform'} width={32} height={32} className="platform-icon" />
-          <div className="title-block">
+          <div className="platform-wrapper">
+            <Image src={getIcon()} alt={service.platform || 'platform'} width={32} height={32} className="platform-icon" />
             <h3 className="title">{title}</h3>
-            <div className="stats-row">
-              <span className="star">⭐</span>
+          </div>
+          <div className="stats-row">
+              <Image src="/star.png" alt="star" width={14} height={14} />
               <span className="rating">{rating} Ratings</span>
               <span className="dot">•</span>
               <span className="ordered">Ordered by 500+</span>
             </div>
-          </div>
         </div>
         <div className="right" style={{ textAlign: 'right' }}>
           {mode === 'amount' ? (
@@ -112,7 +108,7 @@ export default function ServiceCard({ service, quantity, mode = 'qty', budgetUsd
 
       <div className="card-footer">
         <div className="link-preview">
-          <Image src="/icons/link.png" alt="Link" width={16} height={16} />
+          <Image src="/orders/link.png" alt="Link" width={16} height={16} />
           <span className="link-text">{link || 'No link provided'}</span>
         </div>
         <button 

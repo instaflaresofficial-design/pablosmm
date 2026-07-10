@@ -12,9 +12,10 @@ interface Props {
   service?: NormalizedSmmService | null;
   activeCategory?: 'recommended' | 'cheapest' | 'premium';
   onCategoryChange?: (c: 'recommended' | 'cheapest' | 'premium') => void;
+  onClose?: () => void;
 }
 
-export default function ServiceInfo({ services, index = 0, onChangeIndex, service: single, activeCategory, onCategoryChange }: Props) {
+export default function ServiceInfo({ services, index = 0, onChangeIndex, service: single, activeCategory, onCategoryChange, onClose }: Props) {
   const { formatMoneyCompact } = useCurrency();
   const total = services?.length ?? 0;
   const current = single ?? (total > 0 ? services![Math.min(index, total - 1)] : null);
@@ -293,54 +294,15 @@ export default function ServiceInfo({ services, index = 0, onChangeIndex, servic
     <div className='service-info-container'>
       {total > 0 && onChangeIndex && (
         <>
-          {/* {onCategoryChange && (
-            <div className="sliderFilters" role="tablist" aria-label="Service categories">
-              {(
-                [
-                  { key: 'recommended', label: 'Top Rated' },
-                  { key: 'cheapest', label: 'Cheapest' },
-                  { key: 'premium', label: 'Premium' },
-                ] as const
-              ).map((b) => (
-                <button
-                  key={b.key}
-                  role="tab"
-                  aria-selected={activeCategory === b.key}
-                  className={`tab ${activeCategory === b.key ? 'active' : ''}`}
-                  onClick={() => onCategoryChange(b.key)}
-                >
-                  {b.label}
-                </button>
-              ))}
-            </div>
-          )} */}
           <div className="order-summary">
-            <div className="pager">
-              <button
-                className="control prev"
-                onClick={() => onChangeIndex(((index - 1 + total) % total))}
-                aria-label="Previous"
+            {onClose && (
+              <button 
+                onClick={onClose} 
               >
-                <div className="btn-glow" />
-                <FiArrowLeft className="control-icon" aria-hidden />
+                <FiArrowLeft /> Go Back
               </button>
-
-              <div className="pager-count">
-                <span className="current">{(index % total) + 1}</span>
-                <span className="separator">/</span>
-                <span className="total">{total}</span>
-              </div>
-
-              <button
-                className="control next"
-                onClick={() => onChangeIndex(((index + 1) % total))}
-                aria-label="Next"
-              >
-                <div className="btn-glow" />
-                <FiArrowRight className="control-icon" aria-hidden />
-              </button>
-            </div>
-            <h3 className='service-info-title'>{title}</h3>
+            )}
+            <h3 className='service-info-title' style={{ margin: 0 }}>{title}</h3>
           </div>
         </>
       )}
