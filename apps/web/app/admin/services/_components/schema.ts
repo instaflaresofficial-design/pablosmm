@@ -29,6 +29,7 @@ export const serviceSchema = z.object({
     targeting: z.string().optional(),
     quality: z.string().optional(),
     stability: z.string().optional(),
+    refillLimit: z.number().default(3),
     status: z.enum(["active", "hidden", "disabled"]).default("active"),
 });
 

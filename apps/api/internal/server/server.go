@@ -90,6 +90,7 @@ func New(cfg *config.Config) *http.Server {
 			r.Get("/wallet/transactions/recent", h.GetRecentTransactions)
 			r.Get("/orders", h.GetOrders)
 			r.Post("/orders/{id}/cancel", h.CancelOrder)
+			r.Post("/orders/{id}/refill", h.RefillOrder)
 			r.Post("/orders", h.CreateOrder)
 			r.Get("/orders/{id}", h.GetSingleOrder)
 			r.Post("/auth/change-password", h.ChangePassword)
@@ -115,11 +116,21 @@ func New(cfg *config.Config) *http.Server {
 		// Admin Orders
 		r.Get("/admin/orders", h.GetAdminOrders)
 		r.Post("/admin/orders/{id}/refund", h.RefundOrder)
+		r.Patch("/admin/orders/{id}/refills", h.UpdateOrderRefills)
+
+		// Admin Order Requests
+		r.Get("/admin/order-requests", h.GetAdminOrderRequests)
+		r.Post("/admin/order-requests/{id}/approve", h.ApproveOrderRequest)
+		r.Post("/admin/order-requests/{id}/reject", h.RejectOrderRequest)
 
 		// Admin Wallet Requests
 		r.Get("/admin/wallet-requests", h.ListWalletRequests)
 		r.Post("/admin/wallet-requests/{id}/approve", h.ApproveWalletRequest)
 		r.Post("/admin/wallet-requests/{id}/reject", h.RejectWalletRequest)
+
+		// Admin Settings
+		r.Get("/admin/settings", h.GetSettings)
+		r.Post("/admin/settings", h.UpdateSettings)
 	})
 
 	return &http.Server{

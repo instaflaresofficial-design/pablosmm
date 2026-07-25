@@ -23,7 +23,6 @@ export default function WalletAddPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // UPI Auto-verify: unique amount and UPI ID returned by backend
-  const [uniqueAmount, setUniqueAmount] = useState<number | null>(null);
   const [upiId, setUpiId] = useState<string>("");
   const [requestId, setRequestId] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
@@ -38,32 +37,7 @@ export default function WalletAddPage() {
     }
   }, [step, timeLeft]);
 
-  // Poll for auto-verification status when on the pay step with UPI method
-  useEffect(() => {
-    if (step !== 'pay' || method !== 'UPI' || !requestId) return;
 
-    const pollInterval = setInterval(async () => {
-      try {
-        const res = await fetch(`${getApiBaseUrl()}/wallet/deposit/status?id=${requestId}`, {
-          credentials: 'include'
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.status === 'approved') {
-            setAutoVerified(true);
-            setStep('success');
-            toast.success('Payment verified automatically!');
-            clearInterval(pollInterval);
-            setTimeout(() => router.push('/wallet?r=' + Date.now()), 2500);
-          }
-        }
-      } catch {
-        // ignore polling errors
-      }
-    }, 5000); // Poll every 5 seconds
-
-    return () => clearInterval(pollInterval);
-  }, [step, method, requestId, router]);
 
   const formattedAmount = useMemo(() => {
     if (!rawAmount) return "";
@@ -71,10 +45,7 @@ export default function WalletAddPage() {
     return new Intl.NumberFormat("en-IN").format(n);
   }, [rawAmount]);
 
-  const formattedUniqueAmount = useMemo(() => {
-    if (!uniqueAmount) return "";
-    return uniqueAmount.toFixed(2);
-  }, [uniqueAmount]);
+
 
   const handleKeyPress = (d: string) => {
     if (rawAmount.length >= 7) return;
@@ -110,7 +81,6 @@ export default function WalletAddPage() {
         }
 
         const data = await res.json();
-        if (data.unique_amount) setUniqueAmount(data.unique_amount);
         if (data.upi_id) setUpiId(data.upi_id);
         if (data.request_id) setRequestId(data.request_id);
 
@@ -160,11 +130,22 @@ export default function WalletAddPage() {
       }
 
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.error || "Submission failed");
       }
 
-      toast.success("Deposit request submitted!");
+      const data = await res.json();
+      
+      if (data.status === 'approved') {
+        setAutoVerified(true);
+        setStep('success');
+        toast.success("Payment verified automatically!");
+        setTimeout(() => router.push('/wallet?r=' + Date.now()), 2500);
+      } else {
+        setStep('success');
+        toast.success("Deposit request submitted!");
+        setTimeout(() => router.push('/wallet?r=' + Date.now()), 2500);
+      }
     } catch (error: any) {
       console.error(error);
       toast.error(error.message);
@@ -259,9 +240,7 @@ export default function WalletAddPage() {
         <UpiPaymentScreen
           timeLeft={timeLeft}
           formattedAmount={formattedAmount}
-          formattedUniqueAmount={formattedUniqueAmount}
           rawAmount={rawAmount}
-          uniqueAmount={uniqueAmount}
           upiId={upiId}
           requestId={requestId}
           isSubmitting={isSubmitting}

@@ -66,6 +66,7 @@ type NormalizedSmmService struct {
 	Targeting           string      `json:"targeting"`
 	Quality             string      `json:"quality"`
 	Stability           string      `json:"stability"`
+	RefillLimit         int         `json:"refillLimit"`
 }
 
 type ProviderService struct {
@@ -201,6 +202,7 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 		Targeting        *string
 		Quality          *string
 		Stability        *string
+		RefillLimit      int
 	})
 
 	rows, err := s.db.Queries.GetAllServiceOverrides(context.Background())
@@ -262,7 +264,8 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 				Targeting        *string
 				Quality          *string
 				Stability        *string
-			}{displayName, displayDesc, row.RateMultiplier.Float64, row.IsHidden.Bool, category, tags, providerCategory, int(row.PurchaseCount.Int32), displayID, refill, cancel, dripfeed, stype, targeting, quality, stability}
+				RefillLimit      int
+			}{displayName, displayDesc, row.RateMultiplier.Float64, row.IsHidden.Bool, category, tags, providerCategory, int(row.PurchaseCount.Int32), displayID, refill, cancel, dripfeed, stype, targeting, quality, stability, int(row.RefillLimit.Int32)}
 		}
 		log.Printf("DEBUG: Successfully loaded %d overrides from database", len(overrides))
 	}
@@ -315,6 +318,7 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 			Targeting        *string
 			Quality          *string
 			Stability        *string
+			RefillLimit      int
 		}
 		found := false
 
@@ -491,6 +495,7 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 			Targeting:           targeting,
 			Quality:             quality,
 			Stability:           stability,
+			RefillLimit:         func() int { if ov.RefillLimit > 0 { return ov.RefillLimit } else if finalRefill { return 3 }; return 0 }(),
 		}
 
 		avgTime := int(toNumber(raw.AverageTime))
@@ -659,6 +664,27 @@ func (s *ProviderService) CancelOrder(orderID string) (map[string]interface{}, e
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode cancel response: %v", err)
+	}
+
+	return result, nil
+}
+
+// RefillOrder attempts to refill an order on the provider side
+func (s *ProviderService) RefillOrder(orderID string) (map[string]interface{}, error) {
+	formData := url.Values{}
+	formData.Set("key", s.cfg.SMMAPIKey)
+	formData.Set("action", "refill")
+	formData.Set("order", orderID)
+
+	resp, err := http.PostForm(s.cfg.SMMAPIURL, formData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to refill order: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode refill response: %v", err)
 	}
 
 	return result, nil

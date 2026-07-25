@@ -9,9 +9,7 @@ type PaymentPhase = 'idle' | 'processing' | 'utr-input' | 'success' | 'failed';
 interface UpiPaymentScreenProps {
   timeLeft: number;
   formattedAmount: string;
-  formattedUniqueAmount?: string;
   rawAmount: string;
-  uniqueAmount: number | null;
   upiId: string;
   requestId: number | null;
   isSubmitting: boolean;
@@ -24,9 +22,7 @@ interface UpiPaymentScreenProps {
 const UpiPaymentScreen: React.FC<UpiPaymentScreenProps> = ({
   timeLeft,
   formattedAmount,
-  formattedUniqueAmount,
   rawAmount,
-  uniqueAmount,
   upiId,
   requestId,
   isSubmitting,
@@ -40,7 +36,13 @@ const UpiPaymentScreen: React.FC<UpiPaymentScreenProps> = ({
   const [utrError, setUtrError] = useState('');
   const processingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const displayAmount = formattedUniqueAmount || formattedAmount;
+  const [isIOS, setIsIOS] = useState(false);
+
+  useEffect(() => {
+    setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+  }, []);
+
+  const displayAmount = formattedAmount;
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -49,36 +51,83 @@ const UpiPaymentScreen: React.FC<UpiPaymentScreenProps> = ({
   };
 
   const copyUpiId = useCallback(() => {
-    if (upiId) {
-      navigator.clipboard.writeText(upiId);
+    if (!upiId) return;
+
+    const showSuccess = () => {
       setCopied(true);
       toast.success("UPI ID copied!");
       setTimeout(() => setCopied(false), 2000);
+    };
+
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(upiId).then(showSuccess).catch(() => fallbackCopy(upiId, showSuccess));
+    } else {
+      fallbackCopy(upiId, showSuccess);
     }
   }, [upiId]);
 
+  const fallbackCopy = (text: string, onSuccess: () => void) => {
+    try {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      // Prevent scrolling to bottom of page in MS Edge
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      textArea.style.top = "-999999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      if (successful) {
+        onSuccess();
+      } else {
+        toast.error("Failed to copy UPI ID");
+      }
+    } catch (err) {
+      toast.error("Failed to copy UPI ID");
+    }
+  };
+
   // Build UPI intent link
   const getUpiLink = useCallback(() => {
-    const amount = uniqueAmount || rawAmount;
-    return `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent('PabloSMM')}&am=${amount}&cu=INR`;
-  }, [upiId, uniqueAmount, rawAmount]);
+    const amount = rawAmount;
+    return `upi://pay?pa=${encodeURIComponent(upiId)}&am=${amount}&cu=INR`;
+  }, [upiId, rawAmount]);
 
   const handleAppClick = useCallback((app: 'phonepe' | 'gpay' | 'paytm') => {
-    const amount = uniqueAmount || rawAmount;
+    const amount = rawAmount;
     const pa = encodeURIComponent(upiId);
-    const pn = encodeURIComponent('PabloSMM');
-
+    
     let intentUrl = '';
-    switch (app) {
-      case 'phonepe':
-        intentUrl = `phonepe://pay?pa=${pa}&pn=${pn}&am=${amount}&cu=INR`;
-        break;
-      case 'gpay':
-        intentUrl = `tez://upi/pay?pa=${pa}&pn=${pn}&am=${amount}&cu=INR`;
-        break;
-      case 'paytm':
-        intentUrl = `paytmmp://pay?pa=${pa}&pn=${pn}&am=${amount}&cu=INR`;
-        break;
+    
+    if (isIOS) {
+      // iOS strictly requires custom URL schemes to open specific apps (otherwise WhatsApp hijacks upi://)
+      // We explicitly omit the am (amount) parameter here based on user feedback. 
+      // Passing an amount sometimes triggers "Merchant Risk Guidelines" in the iOS apps.
+      // Without it, the app treats it as a standard P2P contact selection and lets the user type the amount.
+      switch (app) {
+        case 'phonepe': intentUrl = `phonepe://pay?pa=${pa}&cu=INR`; break;
+        case 'gpay': intentUrl = `gpay://upi/pay?pa=${pa}&cu=INR`; break;
+        case 'paytm': intentUrl = `paytmmp://pay?pa=${pa}&cu=INR`; break;
+      }
+    } else {
+      // Android uses the standard Intent scheme which guarantees the correct app opens (fixes WhatsApp overriding phonepe)
+      // and bypasses aggressive custom scheme risk policies by acting as a native UPI intent.
+      const baseUpi = `pay?pa=${pa}&am=${amount}&cu=INR`;
+      switch (app) {
+        case 'phonepe':
+          intentUrl = `intent://${baseUpi}#Intent;scheme=upi;package=com.phonepe.app;end`;
+          break;
+        case 'gpay':
+          intentUrl = `intent://${baseUpi}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end`;
+          break;
+        case 'paytm':
+          intentUrl = `intent://${baseUpi}#Intent;scheme=upi;package=net.one97.paytm;end`;
+          break;
+      }
     }
 
     // Try opening the intent. On desktop this will fail silently.
@@ -93,18 +142,12 @@ const UpiPaymentScreen: React.FC<UpiPaymentScreenProps> = ({
     setTimeout(() => {
       window.location.href = getUpiLink();
     }, 1500);
-  }, [upiId, uniqueAmount, rawAmount, getUpiLink]);
+  }, [upiId, rawAmount, getUpiLink, isIOS]);
 
   // When "I have paid" is clicked
   const handleIHavePaid = useCallback(() => {
-    setPhase('processing');
-    // Submit immediately (sends "Paid" as UTR for now)
-    onSubmit();
-    // After 15 seconds if not auto-verified, show UTR input
-    processingTimerRef.current = setTimeout(() => {
-      setPhase('utr-input');
-    }, 15000);
-  }, [onSubmit]);
+    setPhase('utr-input');
+  }, []);
 
   // If auto-verified from parent, jump to success
   useEffect(() => {
@@ -190,26 +233,36 @@ const UpiPaymentScreen: React.FC<UpiPaymentScreenProps> = ({
         </div>
 
         {/* Divider OR */}
-        <div className="upi-divider">
-          <div className="line"></div>
-          <span>OR</span>
-          <div className="line"></div>
-        </div>
+        {isIOS ? (
+          <div className="bg-orange-50/80 border border-orange-100 rounded-lg p-3 text-center mx-4 mt-4">
+            <p className="text-[11px] text-orange-800 font-medium leading-relaxed">
+              Apple iOS restricts 1-click payment links. Please scan the QR code above or copy the UPI ID to pay manually.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="upi-divider">
+              <div className="line"></div>
+              <span>OR</span>
+              <div className="line"></div>
+            </div>
 
-        <p className="upi-direct-text">Pay directly using</p>
+            <p className="upi-direct-text">Pay directly using</p>
 
-        {/* App Icons */}
-        <div className="upi-app-icons">
-          <div className="app-icon-circle" onClick={() => handleAppClick('phonepe')}>
-            <Image src="/payment-methods/platforms/phonepe.png" alt="PhonePe" width={32} height={32} style={{ objectFit: 'contain' }} />
-          </div>
-          <div className="app-icon-circle" onClick={() => handleAppClick('gpay')}>
-            <Image src="/payment-methods/platforms/gpay.png" alt="GPay" width={32} height={32} style={{ objectFit: 'contain' }} />
-          </div>
-          <div className="app-icon-circle" onClick={() => handleAppClick('paytm')}>
-            <Image src="/payment-methods/platforms/paytm.png" alt="Paytm" width={40} height={40} style={{ objectFit: 'contain' }} />
-          </div>
-        </div>
+            {/* App Icons */}
+            <div className="upi-app-icons">
+              <div className="app-icon-circle" onClick={() => handleAppClick('phonepe')}>
+                <Image src="/payment-methods/platforms/phonepe.png" alt="PhonePe" width={32} height={32} style={{ objectFit: 'contain' }} />
+              </div>
+              <div className="app-icon-circle" onClick={() => handleAppClick('gpay')}>
+                <Image src="/payment-methods/platforms/gpay.png" alt="GPay" width={32} height={32} style={{ objectFit: 'contain' }} />
+              </div>
+              <div className="app-icon-circle" onClick={() => handleAppClick('paytm')}>
+                <Image src="/payment-methods/platforms/paytm.png" alt="Paytm" width={40} height={40} style={{ objectFit: 'contain' }} />
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Bottom Fixed Container */}

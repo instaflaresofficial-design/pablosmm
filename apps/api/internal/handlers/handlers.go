@@ -49,8 +49,11 @@ func (h *Handler) GetServices(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("DEBUG: GetServices returned %d services", len(services))
 
+	fxRate := h.fx.GetUsdToInr()
+
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"services": services,
+		"fxRate": fxRate,
 	})
 }
 
@@ -224,6 +227,9 @@ func (h *Handler) GetSingleOrder(w http.ResponseWriter, r *http.Request) {
 		Remains     int     `json:"remains"`
 		ServiceType string  `json:"serviceType"`
 		Category    string  `json:"category"`
+		PendingCancel bool  `json:"pendingCancel"`
+		PendingRefill bool  `json:"pendingRefill"`
+		RefillsRemaining int `json:"refillsRemaining"`
 	}
 
 	orderRow, err := h.db.Queries.GetSingleOrder(context.Background(), sqlc.GetSingleOrderParams{
@@ -250,6 +256,19 @@ func (h *Handler) GetSingleOrder(w http.ResponseWriter, r *http.Request) {
 	o.StartCount = int(orderRow.StartCount)
 	o.ServiceType = orderRow.ServiceType
 	o.Category = orderRow.Category
+
+	// Initialize new fields
+	o.RefillsRemaining = int(orderRow.RefillsRemaining)
+	
+	// We'll fetch pending requests to check flags
+	pendingReqs, _ := h.db.Queries.GetPendingOrderRequestsByOrder(context.Background(), int32(orderID))
+	for _, req := range pendingReqs {
+		if req.RequestType == "cancel" {
+			o.PendingCancel = true
+		} else if req.RequestType == "refill" {
+			o.PendingRefill = true
+		}
+	}
 
 	o.DisplayID = orderRow.DisplayID
 	if o.DisplayID == "" {
@@ -430,12 +449,13 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	orderID, err := qtx.InsertOrder(context.Background(), sqlc.InsertOrderParams{
-		UserID:       int32(userID),
-		ServiceID:    body.ServiceID,
-		Quantity:     int32(body.Quantity),
-		AmountCents:  int32(amountCents),
-		Status:       "pending",
-		Link:         pgtype.Text{String: body.Link, Valid: true},
+		UserID:           int32(userID),
+		ServiceID:        body.ServiceID,
+		Quantity:         int32(body.Quantity),
+		AmountCents:      int32(amountCents),
+		Status:           "pending",
+		Link:             pgtype.Text{String: body.Link, Valid: true},
+		RefillsRemaining: pgtype.Int4{Int32: int32(selectedService.RefillLimit), Valid: true},
 	})
 	if err != nil {
 		http.Error(w, "Failed to create order", http.StatusInternalServerError)
@@ -555,6 +575,7 @@ func (h *Handler) UpdateServiceOverride(w http.ResponseWriter, r *http.Request) 
 		Targeting        *string  `json:"targeting"`
 		Quality          *string  `json:"quality"`
 		Stability        *string  `json:"stability"`
+		RefillLimit      *int32   `json:"refillLimit"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -595,6 +616,7 @@ func (h *Handler) UpdateServiceOverride(w http.ResponseWriter, r *http.Request) 
 		Targeting:          func() pgtype.Text { if body.Targeting != nil { return pgtype.Text{String: *body.Targeting, Valid: true} } else { return pgtype.Text{} } }(),
 		Quality:            func() pgtype.Text { if body.Quality != nil { return pgtype.Text{String: *body.Quality, Valid: true} } else { return pgtype.Text{} } }(),
 		Stability:          func() pgtype.Text { if body.Stability != nil { return pgtype.Text{String: *body.Stability, Valid: true} } else { return pgtype.Text{} } }(),
+		RefillLimit:        func() pgtype.Int4 { if body.RefillLimit != nil { return pgtype.Int4{Int32: *body.RefillLimit, Valid: true} } else { return pgtype.Int4{Int32: 3, Valid: true} } }(),
 	})
 
 	if err != nil {
@@ -628,6 +650,7 @@ func (h *Handler) BulkUpdateServiceOverrides(w http.ResponseWriter, r *http.Requ
 		Targeting          *string  `json:"targeting"`
 		Quality            *string  `json:"quality"`
 		Stability          *string  `json:"stability"`
+		RefillLimit        *int32   `json:"refillLimit"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -673,6 +696,7 @@ func (h *Handler) BulkUpdateServiceOverrides(w http.ResponseWriter, r *http.Requ
 			Column14:        body.Targeting,
 			Column15:        body.Quality,
 			Column16:        body.Stability,
+			Column17:        func() pgtype.Int4 { if body.RefillLimit != nil { return pgtype.Int4{Int32: *body.RefillLimit, Valid: true} } else { return pgtype.Int4{Int32: 3, Valid: true} } }(),
 		})
 		if err != nil {
 			log.Printf("Bulk update failed for %s: %v", id, err)

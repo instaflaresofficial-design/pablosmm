@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS verification_tokens (
 );
 
 -- Simple trigger for updating updated_at columns
+-- +goose StatementBegin
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -84,7 +85,9 @@ BEGIN
     RETURN NEW;
 END;
 $$ language 'plpgsql';
+-- +goose StatementEnd
 
+DROP TRIGGER IF EXISTS update_wallets_updated_at ON wallets;
 CREATE TRIGGER update_wallets_updated_at BEFORE UPDATE ON wallets FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 
 -- Service overrides
@@ -111,6 +114,7 @@ CREATE TABLE IF NOT EXISTS service_overrides (
     stability TEXT DEFAULT NULL
 );
 
+DROP TRIGGER IF EXISTS update_service_overrides_updated_at ON service_overrides;
 CREATE TRIGGER update_service_overrides_updated_at 
 BEFORE UPDATE ON service_overrides 
 FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();

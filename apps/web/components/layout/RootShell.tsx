@@ -8,8 +8,10 @@ import CurrencyStrip from '@/components/layout/CurrencyStrip';
 export default function RootShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '/';
   const isAdmin = pathname.startsWith('/admin');
-  if (isAdmin) {
-    // Render admin routes without site shell
+  const isLandingPage = pathname === '/';
+  
+  if (isAdmin || isLandingPage) {
+    // Render admin routes and landing page without site shell
     return <>{children}</>;
   }
   return (

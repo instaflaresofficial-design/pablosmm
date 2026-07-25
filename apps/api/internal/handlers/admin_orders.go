@@ -187,19 +187,23 @@ func (h *Handler) GetAdminOrders(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type AdminOrderRes struct {
-		ID             int     `json:"id"`
-		ServiceID      string  `json:"serviceId"`
-		DisplayID      string  `json:"displayId"`
-		DisplayName    string  `json:"serviceName"`
-		UserEmail      string  `json:"userEmail"`
-		Amount         float64 `json:"charge"`
-		Quantity       int     `json:"quantity"`
-		Status         string  `json:"status"`
-		Date           string  `json:"date"`
-		Link           string  `json:"link"`
-		Remains        int     `json:"remains"`
-		StartCount     int     `json:"startCount"`
-		RefundedAmount float64 `json:"refundedAmount"`
+		ID               int     `json:"id"`
+		ServiceID        string  `json:"serviceId"`
+		DisplayID        string  `json:"displayId"`
+		DisplayName      string  `json:"serviceName"`
+		UserEmail        string  `json:"userEmail"`
+		Amount           float64 `json:"charge"`
+		Quantity         int     `json:"quantity"`
+		Status           string  `json:"status"`
+		Date             string  `json:"date"`
+		Link             string  `json:"link"`
+		Remains          int     `json:"remains"`
+		StartCount       int     `json:"startCount"`
+		RefundedAmount   float64 `json:"refundedAmount"`
+		ProviderOrderID      string  `json:"providerOrderId"`
+		RefillsRemaining     int     `json:"refillsRemaining"`
+		ServiceRefillLimit   int     `json:"serviceRefillLimit"`
+		ServiceRefillEnabled bool    `json:"serviceRefillEnabled"`
 	}
 
 	orders := []AdminOrderRes{}
@@ -216,6 +220,10 @@ func (h *Handler) GetAdminOrders(w http.ResponseWriter, r *http.Request) {
 		o.StartCount = int(row.StartCount)
 		o.UserEmail = row.Email.String
 		o.RefundedAmount = float64(row.RefundedAmount) / 100.0
+		o.ProviderOrderID = row.ProviderOrderID
+		o.RefillsRemaining = int(row.RefillsRemaining)
+		o.ServiceRefillLimit = int(row.ServiceRefillLimit)
+		o.ServiceRefillEnabled = row.ServiceRefillEnabled
 
 		o.DisplayID = row.DisplayID
 		if o.DisplayID == "" {
@@ -241,4 +249,42 @@ func (h *Handler) GetAdminOrders(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// itoa, anyString, and anyInt removed as they are now in utils.go
+// UpdateOrderRefills allows admin to manually set the refills_remaining
+func (h *Handler) UpdateOrderRefills(w http.ResponseWriter, r *http.Request) {
+	orderIDStr := chi.URLParam(r, "id")
+	orderID, err := strconv.Atoi(orderIDStr)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid order ID"})
+		return
+	}
+
+	var req struct {
+		Refills int `json:"refills_remaining"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+		return
+	}
+
+	err = h.db.Queries.UpdateOrderRefillsAdmin(context.Background(), sqlc.UpdateOrderRefillsAdminParams{
+		ID:               int32(orderID),
+		RefillsRemaining: pgtype.Int4{Int32: int32(req.Refills), Valid: true},
+	})
+	if err != nil {
+		log.Printf("Failed to update refills: %v", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update refills"})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":  "success",
+		"message": "Refills updated successfully",
+	})
+}

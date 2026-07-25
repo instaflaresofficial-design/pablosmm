@@ -15,17 +15,20 @@ import (
 	"pablosmm/backend/internal/db/sqlc"
 )
 
+func jsonError(w http.ResponseWriter, msg string, code int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"error": msg,
+	})
+}
+
 // GetOrders lists current user's orders
 func (h *Handler) GetOrders(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value("userID").(int)
 
-	// Optional filtering by status
 	statusFilter := r.URL.Query().Get("status")
 
-	// Join with service_overrides to get display metrics
-	// orders.service_id contains prefix (e.g. topsmm:2493)
-	// service_overrides.source_service_id is usually raw (e.g. 2493) or prefixed depending on import.
-	// We handle both by checking strict equality OR suffix match.
 	var sqlStatusFilter pgtype.Text
 	if statusFilter == "" || statusFilter == "all" {
 		sqlStatusFilter = pgtype.Text{Valid: false}
@@ -39,7 +42,7 @@ func (h *Handler) GetOrders(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Printf("Error fetching orders: %v", err)
-		http.Error(w, "Failed to fetch orders", http.StatusInternalServerError)
+		jsonError(w, "Failed to fetch orders", http.StatusInternalServerError)
 		return
 	}
 
@@ -54,13 +57,12 @@ func (h *Handler) GetOrders(w http.ResponseWriter, r *http.Request) {
 		Date        string  `json:"date"`
 		Link        string  `json:"link"`
 		StartCount  int     `json:"startCount"`
-		Remains     int     `json:"remains"`
-		ServiceType string  `json:"serviceType"`
-		Category    string  `json:"category"`
+		Remains       int     `json:"remains"`
+		ServiceType   string  `json:"serviceType"`
+		Category      string  `json:"category"`
+		PendingCancel bool    `json:"pendingCancel"`
 	}
 
-	// Build a service lookup map from the live service cache
-	// This enriches orders with serviceType/category/name even if service_overrides has empty values
 	type svcInfo struct {
 		ServiceType  string
 		Category     string
@@ -78,8 +80,8 @@ func (h *Handler) GetOrders(w http.ResponseWriter, r *http.Request) {
 				DisplayName:  s.DisplayName,
 				ProviderName: s.ProviderName,
 			}
-			svcMap[s.ID] = info                // "topsmm:2493"
-			svcMap[s.SourceServiceID] = info    // "2493"
+			svcMap[s.ID] = info
+			svcMap[s.SourceServiceID] = info
 		}
 	}
 
@@ -97,7 +99,8 @@ func (h *Handler) GetOrders(w http.ResponseWriter, r *http.Request) {
 		o.StartCount = int(row.StartCount)
 		o.ServiceType = row.ServiceType
 		o.Category = row.Category
-		
+		o.PendingCancel = row.PendingCancel
+
 		o.DisplayID = row.DisplayID
 		if o.DisplayID == "" {
 			if idx := strings.LastIndex(o.ServiceID, ":"); idx != -1 {
@@ -111,7 +114,6 @@ func (h *Handler) GetOrders(w http.ResponseWriter, r *http.Request) {
 			o.DisplayName = row.DisplayName
 		}
 
-		// Enrich from live service cache if DB values are missing
 		if info, ok := svcMap[o.ServiceID]; ok {
 			if o.ServiceType == "" {
 				o.ServiceType = info.ServiceType
@@ -127,7 +129,6 @@ func (h *Handler) GetOrders(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		} else {
-			// Try with just the raw source ID part
 			parts := strings.SplitN(o.ServiceID, ":", 2)
 			if len(parts) == 2 {
 				if info, ok := svcMap[parts[1]]; ok {
@@ -148,18 +149,11 @@ func (h *Handler) GetOrders(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// Normalize Status for UI
-		// "submitted" -> "active"
 		if o.Status == "submitted" {
 			o.Status = "active"
 		}
 
 		orders = append(orders, o)
-	}
-
-	log.Printf("Returning %d orders for user %d", len(orders), userID)
-	if len(orders) > 0 {
-		log.Printf("Sample Order #%d: ServiceType=%s, Category=%s, Name=%s", orders[0].ID, orders[0].ServiceType, orders[0].Category, orders[0].DisplayName)
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -175,60 +169,81 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 
 	tx, err := h.db.Pool.Begin(context.Background())
 	if err != nil {
-		http.Error(w, "Database error", http.StatusInternalServerError)
+		jsonError(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 	defer tx.Rollback(context.Background())
 
 	qtx := h.db.Queries.WithTx(tx)
 
-	// 1. Lock Order and Check Status
 	orderRow, err := qtx.GetOrderForCancel(context.Background(), sqlc.GetOrderForCancelParams{
 		ID:     int32(orderID),
 		UserID: int32(userID),
 	})
 
 	if err != nil {
-		http.Error(w, "Order not found", http.StatusNotFound)
+		jsonError(w, "Order not found", http.StatusNotFound)
 		return
 	}
 	status := orderRow.Status
 	amountCents := int(orderRow.AmountCents)
 	providerOrderID := orderRow.ProviderOrderID
 
-	// 2. Cancellation Rules
 	if status == "canceled" || status == "completed" {
-		http.Error(w, "Order already finalized", http.StatusBadRequest)
+		jsonError(w, "Order already finalized", http.StatusBadRequest)
 		return
 	}
 
-	// Check if external
 	if providerOrderID != "" {
-		http.Error(w, "Cannot cancel order sent to provider", http.StatusForbidden)
+		var providerRespJSON string
+		resp, err := h.smm.CancelOrder(providerOrderID)
+		if err == nil && resp != nil {
+			log.Printf("Provider cancel response for #%s: %v", providerOrderID, resp)
+			b, _ := json.Marshal(resp)
+			providerRespJSON = string(b)
+		} else {
+			log.Printf("Provider cancel failed/unsupported for #%s: %v", providerOrderID, err)
+			providerRespJSON = fmt.Sprintf(`{"error": "%v"}`, err)
+		}
+
+		_, err = qtx.CreateOrderRequest(context.Background(), sqlc.CreateOrderRequestParams{
+			OrderID:          int32(orderID),
+			UserID:           int32(userID),
+			RequestType:      "cancel",
+			ProviderResponse: pgtype.Text{String: providerRespJSON, Valid: providerRespJSON != ""},
+		})
+		if err != nil {
+			log.Printf("Failed to create cancel request: %v", err)
+			jsonError(w, "Failed to submit cancellation request", http.StatusInternalServerError)
+			return
+		}
+		
+		tx.Commit(context.Background())
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":     "success",
+			"message":    "Cancellation request submitted. Our team will review it.",
+		})
 		return
 	}
 
-	// 3. Mark Canceled
 	err = qtx.CancelOrder(context.Background(), int32(orderID))
 	if err != nil {
-		http.Error(w, "Failed to update order", http.StatusInternalServerError)
+		jsonError(w, "Failed to update order", http.StatusInternalServerError)
 		return
 	}
 
-	// 4. Refund Wallet
 	err = qtx.UpsertWalletBalance(context.Background(), sqlc.UpsertWalletBalanceParams{
 		UserID:  int32(userID),
 		Balance: int32(amountCents),
 	})
 	if err != nil {
 		log.Printf("Refund failed: %v", err)
-		http.Error(w, "Refund process failed", http.StatusInternalServerError)
+		jsonError(w, "Refund process failed", http.StatusInternalServerError)
 		return
 	}
 
 	newBalance, _ := qtx.GetWalletBalance(context.Background(), int32(userID))
 
-	// 5. Log Transaction
 	refundAmount := float64(amountCents) / 100.0
 	err = qtx.InsertTransaction(context.Background(), sqlc.InsertTransactionParams{
 		UserID:      pgtype.Int4{Int32: int32(userID), Valid: true},
@@ -238,12 +253,12 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		http.Error(w, "Transaction log failed", http.StatusInternalServerError)
+		jsonError(w, "Transaction log failed", http.StatusInternalServerError)
 		return
 	}
 
 	if err := tx.Commit(context.Background()); err != nil {
-		http.Error(w, "Commit failed", http.StatusInternalServerError)
+		jsonError(w, "Commit failed", http.StatusInternalServerError)
 		return
 	}
 
@@ -254,4 +269,84 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// anyString and anyInt removed as they are now in utils.go
+// RefillOrder attempts to refill an order
+func (h *Handler) RefillOrder(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("userID").(int)
+	orderIDStr := chi.URLParam(r, "id")
+	orderID, _ := strconv.Atoi(orderIDStr)
+
+	tx, err := h.db.Pool.Begin(context.Background())
+	if err != nil {
+		jsonError(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback(context.Background())
+
+	qtx := h.db.Queries.WithTx(tx)
+
+	orderRow, err := qtx.GetOrderForCancel(context.Background(), sqlc.GetOrderForCancelParams{
+		ID:     int32(orderID),
+		UserID: int32(userID),
+	})
+	if err != nil {
+		jsonError(w, "Order not found", http.StatusNotFound)
+		return
+	}
+	providerOrderID := orderRow.ProviderOrderID
+
+	pending, err := qtx.GetPendingOrderRequestsByOrder(context.Background(), int32(orderID))
+	if err == nil {
+		for _, req := range pending {
+			if req.RequestType == "refill" {
+				jsonError(w, "Refill request already pending", http.StatusBadRequest)
+				return
+			}
+		}
+	}
+
+	var providerRespJSON string
+	if providerOrderID != "" {
+		resp, err := h.smm.RefillOrder(providerOrderID)
+		if err == nil && resp != nil {
+			log.Printf("Provider refill response for #%s: %v", providerOrderID, resp)
+			b, _ := json.Marshal(resp)
+			providerRespJSON = string(b)
+			
+			// If provider rejected it, return the error directly and don't deduct refills
+			if errorMsg, ok := resp["error"].(string); ok {
+				jsonError(w, errorMsg, http.StatusBadRequest)
+				return
+			}
+		} else {
+			log.Printf("Provider refill failed/unsupported for #%s: %v", providerOrderID, err)
+			providerRespJSON = fmt.Sprintf(`{"error": "%v"}`, err)
+		}
+	}
+
+	_, err = qtx.CreateOrderRequest(context.Background(), sqlc.CreateOrderRequestParams{
+		OrderID:          int32(orderID),
+		UserID:           int32(userID),
+		RequestType:      "refill",
+		ProviderResponse: pgtype.Text{String: providerRespJSON, Valid: providerRespJSON != ""},
+	})
+	if err != nil {
+		log.Printf("Failed to create refill request: %v", err)
+		jsonError(w, "Failed to submit refill request", http.StatusInternalServerError)
+		return
+	}
+	
+	err = qtx.DecrementOrderRefills(context.Background(), int32(orderID))
+	if err != nil {
+		log.Printf("Failed to decrement refills: %v", err)
+	}
+
+	if err := tx.Commit(context.Background()); err != nil {
+		jsonError(w, "Commit failed", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":  "success",
+		"message": "Refill request submitted. Our team will review it.",
+	})
+}

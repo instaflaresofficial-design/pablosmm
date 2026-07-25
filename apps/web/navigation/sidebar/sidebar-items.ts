@@ -63,6 +63,16 @@ export const sidebarItems: NavGroup[] = [
         url: "/admin/wallet-requests",
         icon: Banknote,
       },
+      {
+        title: "Order Requests",
+        url: "/admin/order-requests",
+        icon: ShoppingBag,
+      },
+      {
+        title: "Settings",
+        url: "/admin/settings",
+        icon: Settings,
+      },
     ],
   },
 ];

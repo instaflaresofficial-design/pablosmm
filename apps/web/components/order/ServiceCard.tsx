@@ -49,7 +49,12 @@ export default function ServiceCard({ service, quantity, mode = 'qty', budgetUsd
 
   // If title doesn't include variant/type, build it up, otherwise use displayName
   const title = service.displayName || `${service.platform} ${service.type} - ${service.displayId || service.id}`
-  const rating = (Math.random() * (5.0 - 4.5) + 4.5).toFixed(1) // Placeholder since we don't have real ratings
+  const rating = React.useMemo(() => {
+    // Generate a stable pseudo-random number based on the service ID
+    const seed = String(service.id).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const random = (seed % 100) / 100; // 0.0 to 0.99
+    return (random * 0.5 + 4.5).toFixed(1);
+  }, [service.id]);
 
   return (
     <div 

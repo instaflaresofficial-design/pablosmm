@@ -23,21 +23,39 @@ type Account struct {
 	SessionState      pgtype.Text `json:"session_state"`
 }
 
+type GlobalSetting struct {
+	Key       string             `json:"key"`
+	Value     string             `json:"value"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Order struct {
-	ID              int32              `json:"id"`
-	UserID          int32              `json:"user_id"`
-	ServiceID       string             `json:"service_id"`
-	Quantity        int32              `json:"quantity"`
-	AmountCents     int32              `json:"amount_cents"`
-	Status          string             `json:"status"`
-	ProviderResp    []byte             `json:"provider_resp"`
-	ProviderOrderID pgtype.Text        `json:"provider_order_id"`
-	RefundedAmount  pgtype.Int4        `json:"refunded_amount"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	Remains         pgtype.Int4        `json:"remains"`
-	StartCount      pgtype.Int4        `json:"start_count"`
-	Link            pgtype.Text        `json:"link"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	ID               int32              `json:"id"`
+	UserID           int32              `json:"user_id"`
+	ServiceID        string             `json:"service_id"`
+	Quantity         int32              `json:"quantity"`
+	AmountCents      int32              `json:"amount_cents"`
+	Status           string             `json:"status"`
+	ProviderResp     []byte             `json:"provider_resp"`
+	ProviderOrderID  pgtype.Text        `json:"provider_order_id"`
+	RefundedAmount   pgtype.Int4        `json:"refunded_amount"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	Remains          pgtype.Int4        `json:"remains"`
+	StartCount       pgtype.Int4        `json:"start_count"`
+	Link             pgtype.Text        `json:"link"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	RefillsRemaining pgtype.Int4        `json:"refills_remaining"`
+}
+
+type OrderRequest struct {
+	ID               int32              `json:"id"`
+	OrderID          int32              `json:"order_id"`
+	UserID           int32              `json:"user_id"`
+	RequestType      string             `json:"request_type"`
+	Status           pgtype.Text        `json:"status"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	ProviderResponse pgtype.Text        `json:"provider_response"`
 }
 
 type ServiceOverride struct {
@@ -61,6 +79,7 @@ type ServiceOverride struct {
 	Targeting          pgtype.Text        `json:"targeting"`
 	Quality            pgtype.Text        `json:"quality"`
 	Stability          pgtype.Text        `json:"stability"`
+	RefillLimit        pgtype.Int4        `json:"refill_limit"`
 }
 
 type Session struct {

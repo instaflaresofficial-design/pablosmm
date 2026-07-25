@@ -20,17 +20,22 @@ type Querier interface {
 	CheckUPINotificationExists(ctx context.Context, utr pgtype.Text) (int32, error)
 	CheckUniqueAmount(ctx context.Context, uniqueAmount pgtype.Numeric) (int64, error)
 	CheckUserExists(ctx context.Context, arg CheckUserExistsParams) (bool, error)
+	CountWalletTransactions(ctx context.Context, userID pgtype.Int4) (int64, error)
 	CreateCryptomusWalletRequest(ctx context.Context, arg CreateCryptomusWalletRequestParams) (int32, error)
 	CreateGoogleUser(ctx context.Context, arg CreateGoogleUserParams) (CreateGoogleUserRow, error)
+	CreateOrderRequest(ctx context.Context, arg CreateOrderRequestParams) (CreateOrderRequestRow, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) error
 	CreditWallet(ctx context.Context, arg CreditWalletParams) error
 	DebitWallet(ctx context.Context, arg DebitWalletParams) error
+	DecrementOrderRefills(ctx context.Context, id int32) error
 	DeleteOrder(ctx context.Context, id int32) error
 	FindMatchingWalletRequest(ctx context.Context, uniqueAmount pgtype.Numeric) (FindMatchingWalletRequestRow, error)
+	FindMatchingWalletRequestByUTR(ctx context.Context, transactionID pgtype.Text) (FindMatchingWalletRequestByUTRRow, error)
 	GenerateAPIKey(ctx context.Context, arg GenerateAPIKeyParams) error
 	GetAdminOrders(ctx context.Context, arg GetAdminOrdersParams) ([]GetAdminOrdersRow, error)
 	GetAllMoneyTransactions(ctx context.Context, userID pgtype.Int4) ([]GetAllMoneyTransactionsRow, error)
 	GetAllServiceOverrides(ctx context.Context) ([]GetAllServiceOverridesRow, error)
+	GetAllSettings(ctx context.Context) ([]GetAllSettingsRow, error)
 	GetDepositStatus(ctx context.Context, arg GetDepositStatusParams) (pgtype.Text, error)
 	GetOrderForCancel(ctx context.Context, arg GetOrderForCancelParams) (GetOrderForCancelRow, error)
 	GetOrderForRefundAdmin(ctx context.Context, id int32) (GetOrderForRefundAdminRow, error)
@@ -40,10 +45,13 @@ type Querier interface {
 	GetOrders(ctx context.Context, arg GetOrdersParams) ([]GetOrdersRow, error)
 	GetOrdersForSync(ctx context.Context) ([]GetOrdersForSyncRow, error)
 	GetPasswordHash(ctx context.Context, id int32) (string, error)
+	GetPendingOrderRequestsByOrder(ctx context.Context, orderID int32) ([]OrderRequest, error)
 	GetProfileStats(ctx context.Context, userID int32) (GetProfileStatsRow, error)
 	GetProfileTotalSpend(ctx context.Context, userID int32) (int32, error)
 	GetRecentMoneyTransactions(ctx context.Context, userID pgtype.Int4) ([]GetRecentMoneyTransactionsRow, error)
+	GetSetting(ctx context.Context, key string) (string, error)
 	GetSingleOrder(ctx context.Context, arg GetSingleOrderParams) (GetSingleOrderRow, error)
+	GetUnmatchedUPINotification(ctx context.Context, utr pgtype.Text) (GetUnmatchedUPINotificationRow, error)
 	GetUserAdmin(ctx context.Context, id int32) (GetUserAdminRow, error)
 	GetUserByAPIKey(ctx context.Context, apiKey pgtype.Text) (GetUserByAPIKeyRow, error)
 	GetUserDataForMe(ctx context.Context, id int32) (GetUserDataForMeRow, error)
@@ -57,6 +65,7 @@ type Querier interface {
 	GetWalletRequestForUpdateAdmin(ctx context.Context, id int32) (GetWalletRequestForUpdateAdminRow, error)
 	GetWalletRequestStatus(ctx context.Context, id int32) (pgtype.Text, error)
 	GetWalletRequestStatusForUpdate(ctx context.Context, id int32) (pgtype.Text, error)
+	GetWalletTransactions(ctx context.Context, arg GetWalletTransactionsParams) ([]Transaction, error)
 	IncrementServicePurchaseCount(ctx context.Context, sourceServiceID string) error
 	InsertAPIOrder(ctx context.Context, arg InsertAPIOrderParams) (int32, error)
 	InsertOrder(ctx context.Context, arg InsertOrderParams) (int32, error)
@@ -64,7 +73,9 @@ type Querier interface {
 	InsertUPINotificationMatched(ctx context.Context, arg InsertUPINotificationMatchedParams) error
 	InsertUPINotificationUnmatched(ctx context.Context, arg InsertUPINotificationUnmatchedParams) error
 	InsertWalletRequest(ctx context.Context, arg InsertWalletRequestParams) (int32, error)
+	ListPendingOrderRequests(ctx context.Context) ([]ListPendingOrderRequestsRow, error)
 	ListWalletRequestsAdmin(ctx context.Context) ([]ListWalletRequestsAdminRow, error)
+	MarkUPINotificationMatched(ctx context.Context, arg MarkUPINotificationMatchedParams) error
 	RejectWalletRequest(ctx context.Context, id int32) error
 	UpdateAPIOrderStatusFailed(ctx context.Context, id int32) error
 	UpdateAPIOrderStatusSubmitted(ctx context.Context, arg UpdateAPIOrderStatusSubmittedParams) error
@@ -72,7 +83,9 @@ type Querier interface {
 	UpdateDepositUTR(ctx context.Context, arg UpdateDepositUTRParams) (int64, error)
 	UpdateGoogleInfo(ctx context.Context, arg UpdateGoogleInfoParams) error
 	UpdateOrderProvider(ctx context.Context, arg UpdateOrderProviderParams) error
+	UpdateOrderRefillsAdmin(ctx context.Context, arg UpdateOrderRefillsAdminParams) error
 	UpdateOrderRefundAdmin(ctx context.Context, arg UpdateOrderRefundAdminParams) (string, error)
+	UpdateOrderRequestStatus(ctx context.Context, arg UpdateOrderRequestStatusParams) error
 	UpdateOrderSyncNoRefund(ctx context.Context, arg UpdateOrderSyncNoRefundParams) error
 	UpdateOrderSyncWithRefund(ctx context.Context, arg UpdateOrderSyncWithRefundParams) error
 	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) error
@@ -80,6 +93,7 @@ type Querier interface {
 	UpdateUser(ctx context.Context, arg UpdateUserParams) error
 	UpdateWalletRequestStatusAndTxn(ctx context.Context, arg UpdateWalletRequestStatusAndTxnParams) error
 	UpsertServiceOverride(ctx context.Context, arg UpsertServiceOverrideParams) error
+	UpsertSetting(ctx context.Context, arg UpsertSettingParams) error
 	UpsertWalletBalance(ctx context.Context, arg UpsertWalletBalanceParams) error
 }
 

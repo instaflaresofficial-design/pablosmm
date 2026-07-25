@@ -16,14 +16,25 @@ export type AdminOrder = {
     date: string;
     link: string;
     refundedAmount?: number;
+    providerOrderId?: string;
+    refillsRemaining?: number;
+    serviceRefillLimit?: number;
+    serviceRefillEnabled?: boolean;
 };
 
 export const columns: ColumnDef<AdminOrder>[] = [
     {
         accessorKey: "id",
         header: "ID",
-        cell: ({ row }) => <span className="font-mono text-xs">#{row.original.id}</span>,
-        size: 60,
+        cell: ({ row }) => (
+            <div className="flex flex-col">
+                <span className="font-mono text-xs font-bold">#{row.original.id}</span>
+                {row.original.providerOrderId && (
+                    <span className="text-[10px] text-muted-foreground font-mono">Prov: #{row.original.providerOrderId}</span>
+                )}
+            </div>
+        ),
+        size: 80,
     },
     {
         accessorKey: "date",

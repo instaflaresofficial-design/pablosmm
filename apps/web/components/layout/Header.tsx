@@ -13,7 +13,7 @@ const Header = () => {
   return (
     <div className='navigation'>
       <div className='hamburger'>
-        <Menu color="white" size={26} />
+        <Menu color="white" size={22} />
       </div>
       <div className="logo">
         <Link href="/">

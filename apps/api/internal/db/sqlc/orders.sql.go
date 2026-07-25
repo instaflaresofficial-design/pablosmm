@@ -44,9 +44,18 @@ SELECT
 	COALESCE(o.start_count, 0)::int as start_count,
 	COALESCE(o.link, '')::text as link,
 	u.email,
-	COALESCE(o.refunded_amount, 0)::int as refunded_amount
+	COALESCE(o.refunded_amount, 0)::int as refunded_amount,
+	COALESCE(o.provider_order_id, '')::text as provider_order_id,
+	COALESCE(o.refills_remaining, 3)::int as refills_remaining,
+	COALESCE(so.refill_limit, 3)::int as service_refill_limit,
+	COALESCE(so.refill, false)::boolean as service_refill_enabled
 FROM orders o
-LEFT JOIN service_overrides so ON (o.service_id = so.source_service_id OR split_part(o.service_id, ':', 2) = so.source_service_id)
+LEFT JOIN service_overrides so ON (
+	o.service_id = so.source_service_id 
+	OR split_part(o.service_id, ':', 2) = so.source_service_id
+	OR o.service_id = so.source_service_id || ':' || split_part(o.service_id, ':', 2)
+	OR split_part(o.service_id, ':', 2) = split_part(so.source_service_id, ':', 2)
+)
 JOIN users u ON o.user_id = u.id
 WHERE ($1::text IS NULL OR o.status = $1)
 AND ($2::int IS NULL OR o.user_id = $2)
@@ -59,20 +68,24 @@ type GetAdminOrdersParams struct {
 }
 
 type GetAdminOrdersRow struct {
-	ID              int32              `json:"id"`
-	ServiceID       string             `json:"service_id"`
-	AmountCents     int32              `json:"amount_cents"`
-	Quantity        int32              `json:"quantity"`
-	Status          string             `json:"status"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	ProviderOrderID string             `json:"provider_order_id"`
-	DisplayID       string             `json:"display_id"`
-	DisplayName     string             `json:"display_name"`
-	Remains         int32              `json:"remains"`
-	StartCount      int32              `json:"start_count"`
-	Link            string             `json:"link"`
-	Email           pgtype.Text        `json:"email"`
-	RefundedAmount  int32              `json:"refunded_amount"`
+	ID                   int32              `json:"id"`
+	ServiceID            string             `json:"service_id"`
+	AmountCents          int32              `json:"amount_cents"`
+	Quantity             int32              `json:"quantity"`
+	Status               string             `json:"status"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	ProviderOrderID      string             `json:"provider_order_id"`
+	DisplayID            string             `json:"display_id"`
+	DisplayName          string             `json:"display_name"`
+	Remains              int32              `json:"remains"`
+	StartCount           int32              `json:"start_count"`
+	Link                 string             `json:"link"`
+	Email                pgtype.Text        `json:"email"`
+	RefundedAmount       int32              `json:"refunded_amount"`
+	ProviderOrderID_2    string             `json:"provider_order_id_2"`
+	RefillsRemaining     int32              `json:"refills_remaining"`
+	ServiceRefillLimit   int32              `json:"service_refill_limit"`
+	ServiceRefillEnabled bool               `json:"service_refill_enabled"`
 }
 
 func (q *Queries) GetAdminOrders(ctx context.Context, arg GetAdminOrdersParams) ([]GetAdminOrdersRow, error) {
@@ -99,6 +112,10 @@ func (q *Queries) GetAdminOrders(ctx context.Context, arg GetAdminOrdersParams) 
 			&i.Link,
 			&i.Email,
 			&i.RefundedAmount,
+			&i.ProviderOrderID_2,
+			&i.RefillsRemaining,
+			&i.ServiceRefillLimit,
+			&i.ServiceRefillEnabled,
 		); err != nil {
 			return nil, err
 		}
@@ -175,7 +192,8 @@ SELECT
 	COALESCE(o.link, '')::text as link,
 	(SELECT COALESCE(balance, 0)::int FROM wallets WHERE user_id = o.user_id) as user_balance,
 	COALESCE(so.service_type, '')::text as service_type,
-	COALESCE(so.category, '')::text as category
+	COALESCE(so.category, '')::text as category,
+	EXISTS(SELECT 1 FROM order_requests WHERE order_id = o.id AND request_type = 'cancel' AND status = 'pending')::boolean as pending_cancel
 FROM orders o
 LEFT JOIN service_overrides so ON (
 	o.service_id = so.source_service_id 
@@ -212,6 +230,7 @@ type GetOrdersRow struct {
 	UserBalance     int32              `json:"user_balance"`
 	ServiceType     string             `json:"service_type"`
 	Category        string             `json:"category"`
+	PendingCancel   bool               `json:"pending_cancel"`
 }
 
 func (q *Queries) GetOrders(ctx context.Context, arg GetOrdersParams) ([]GetOrdersRow, error) {
@@ -239,6 +258,7 @@ func (q *Queries) GetOrders(ctx context.Context, arg GetOrdersParams) ([]GetOrde
 			&i.UserBalance,
 			&i.ServiceType,
 			&i.Category,
+			&i.PendingCancel,
 		); err != nil {
 			return nil, err
 		}
@@ -265,7 +285,8 @@ SELECT
 	COALESCE(o.start_count, 0)::int as start_count,
 	COALESCE(o.link, '')::text as link,
 	COALESCE(so.service_type, '')::text as service_type,
-	COALESCE(so.category, '')::text as category
+	COALESCE(so.category, '')::text as category,
+	COALESCE(o.refills_remaining, 3)::int as refills_remaining
 FROM orders o
 LEFT JOIN service_overrides so ON (
 	o.service_id = so.source_service_id 
@@ -282,20 +303,21 @@ type GetSingleOrderParams struct {
 }
 
 type GetSingleOrderRow struct {
-	ID          int32              `json:"id"`
-	ServiceID   string             `json:"service_id"`
-	AmountCents int32              `json:"amount_cents"`
-	Quantity    int32              `json:"quantity"`
-	Status      string             `json:"status"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-	DisplayID   string             `json:"display_id"`
-	DisplayName string             `json:"display_name"`
-	Remains     int32              `json:"remains"`
-	StartCount  int32              `json:"start_count"`
-	Link        string             `json:"link"`
-	ServiceType string             `json:"service_type"`
-	Category    string             `json:"category"`
+	ID               int32              `json:"id"`
+	ServiceID        string             `json:"service_id"`
+	AmountCents      int32              `json:"amount_cents"`
+	Quantity         int32              `json:"quantity"`
+	Status           string             `json:"status"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	DisplayID        string             `json:"display_id"`
+	DisplayName      string             `json:"display_name"`
+	Remains          int32              `json:"remains"`
+	StartCount       int32              `json:"start_count"`
+	Link             string             `json:"link"`
+	ServiceType      string             `json:"service_type"`
+	Category         string             `json:"category"`
+	RefillsRemaining int32              `json:"refills_remaining"`
 }
 
 func (q *Queries) GetSingleOrder(ctx context.Context, arg GetSingleOrderParams) (GetSingleOrderRow, error) {
@@ -316,25 +338,27 @@ func (q *Queries) GetSingleOrder(ctx context.Context, arg GetSingleOrderParams) 
 		&i.Link,
 		&i.ServiceType,
 		&i.Category,
+		&i.RefillsRemaining,
 	)
 	return i, err
 }
 
 const insertOrder = `-- name: InsertOrder :one
-INSERT INTO orders (user_id, service_id, amount_cents, quantity, link, status, provider_order_id, provider_resp)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO orders (user_id, service_id, amount_cents, quantity, link, status, provider_order_id, provider_resp, refills_remaining)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING id
 `
 
 type InsertOrderParams struct {
-	UserID          int32       `json:"user_id"`
-	ServiceID       string      `json:"service_id"`
-	AmountCents     int32       `json:"amount_cents"`
-	Quantity        int32       `json:"quantity"`
-	Link            pgtype.Text `json:"link"`
-	Status          string      `json:"status"`
-	ProviderOrderID pgtype.Text `json:"provider_order_id"`
-	ProviderResp    []byte      `json:"provider_resp"`
+	UserID           int32       `json:"user_id"`
+	ServiceID        string      `json:"service_id"`
+	AmountCents      int32       `json:"amount_cents"`
+	Quantity         int32       `json:"quantity"`
+	Link             pgtype.Text `json:"link"`
+	Status           string      `json:"status"`
+	ProviderOrderID  pgtype.Text `json:"provider_order_id"`
+	ProviderResp     []byte      `json:"provider_resp"`
+	RefillsRemaining pgtype.Int4 `json:"refills_remaining"`
 }
 
 func (q *Queries) InsertOrder(ctx context.Context, arg InsertOrderParams) (int32, error) {
@@ -347,6 +371,7 @@ func (q *Queries) InsertOrder(ctx context.Context, arg InsertOrderParams) (int32
 		arg.Status,
 		arg.ProviderOrderID,
 		arg.ProviderResp,
+		arg.RefillsRemaining,
 	)
 	var id int32
 	err := row.Scan(&id)
@@ -371,6 +396,20 @@ func (q *Queries) UpdateOrderProvider(ctx context.Context, arg UpdateOrderProvid
 		arg.Status,
 		arg.ID,
 	)
+	return err
+}
+
+const updateOrderRefillsAdmin = `-- name: UpdateOrderRefillsAdmin :exec
+UPDATE orders SET refills_remaining = $2 WHERE id = $1
+`
+
+type UpdateOrderRefillsAdminParams struct {
+	ID               int32       `json:"id"`
+	RefillsRemaining pgtype.Int4 `json:"refills_remaining"`
+}
+
+func (q *Queries) UpdateOrderRefillsAdmin(ctx context.Context, arg UpdateOrderRefillsAdminParams) error {
+	_, err := q.db.Exec(ctx, updateOrderRefillsAdmin, arg.ID, arg.RefillsRemaining)
 	return err
 }
 

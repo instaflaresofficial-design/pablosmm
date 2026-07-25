@@ -58,6 +58,7 @@ const formSchema = z.object({
     targeting: z.string().optional(),
     quality: z.string().optional(),
     stability: z.string().optional(),
+    refillLimit: z.coerce.number().min(0).default(3),
 });
 
 interface RewriteDialogProps {
@@ -90,6 +91,7 @@ export function RewriteDialog({ open, onOpenChange, service, onSuccess }: Rewrit
             targeting: "",
             quality: "",
             stability: "",
+            refillLimit: 3,
         },
     });
 
@@ -121,6 +123,7 @@ export function RewriteDialog({ open, onOpenChange, service, onSuccess }: Rewrit
                 targeting: service.targeting || "",
                 quality: service.quality || "",
                 stability: service.stability || "",
+                refillLimit: service.refillLimit ?? 3,
             });
 
             // Set initial local price
@@ -625,6 +628,26 @@ export function RewriteDialog({ open, onOpenChange, service, onSuccess }: Rewrit
                                                 />
                                             ))}
                                         </div>
+                                        {form.watch("refill") && (
+                                            <FormField
+                                                control={form.control}
+                                                name="refillLimit"
+                                                render={({ field }) => (
+                                                    <FormItem className="mt-2">
+                                                        <FormLabel className="text-[11px] font-medium">Refill Limit</FormLabel>
+                                                        <FormControl>
+                                                            <Input 
+                                                                type="number" 
+                                                                className="h-8 text-xs" 
+                                                                {...field} 
+                                                                value={field.value as any}
+                                                                onChange={e => field.onChange(parseInt(e.target.value))}
+                                                            />
+                                                        </FormControl>
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        )}
                                     </div>
                                 </div>
                             </div>

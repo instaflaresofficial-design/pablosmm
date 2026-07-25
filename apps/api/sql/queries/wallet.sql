@@ -76,6 +76,27 @@ SELECT status FROM wallet_requests WHERE id=$1 AND user_id=$2;
 -- name: DebitWallet :exec
 UPDATE wallets SET balance = balance - $1 WHERE user_id = $2;
 
+-- name: GetWalletTransactions :many
+SELECT * FROM transactions WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3;
+
+-- name: CountWalletTransactions :one
+SELECT COUNT(*) FROM transactions WHERE user_id = $1;
+
+-- name: GetUnmatchedUPINotification :one
+SELECT id, amount, utr, sender_upi FROM upi_notifications
+WHERE utr = $1 AND status = 'unmatched' LIMIT 1;
+
+-- name: MarkUPINotificationMatched :exec
+UPDATE upi_notifications SET status = 'matched', matched_request_id = $1 WHERE id = $2;
+
+-- name: FindMatchingWalletRequestByUTR :one
+SELECT id, user_id, amount FROM wallet_requests
+WHERE status = 'pending'
+AND method = 'UPI'
+AND transaction_id = $1
+ORDER BY created_at DESC
+LIMIT 1;
+
 -- name: CreditWallet :exec
 UPDATE wallets SET balance = balance + $1 WHERE user_id = $2;
 

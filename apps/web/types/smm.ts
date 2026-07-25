@@ -28,6 +28,7 @@ export interface NormalizedSmmService {
 	refill: boolean;
 	dripfeed: boolean;
 	cancel: boolean;
+	refillLimit?: number;
 	averageTime: number | null;
 	raw?: unknown; // full provider payload for debugging
 	targeting?: string;

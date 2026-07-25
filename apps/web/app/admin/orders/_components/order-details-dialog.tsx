@@ -38,6 +38,11 @@ export function OrderDetailsDialog({ order, open, onOpenChange, onSuccess }: Ord
     const [refunding, setRefunding] = useState(false);
     const [showRefundDialog, setShowRefundDialog] = useState(false);
     const [refundAmount, setRefundAmount] = useState("");
+    
+    // Refills editing state
+    const [isEditingRefills, setIsEditingRefills] = useState(false);
+    const [refillsValue, setRefillsValue] = useState("");
+    const [updatingRefills, setUpdatingRefills] = useState(false);
 
     if (!order) return null;
 
@@ -91,6 +96,36 @@ export function OrderDetailsDialog({ order, open, onOpenChange, onSuccess }: Ord
         }
     };
 
+    const handleSaveRefills = async () => {
+        const val = parseInt(refillsValue);
+        if (isNaN(val) || val < 0) {
+            toast.error("Please enter a valid number of refills");
+            return;
+        }
+
+        setUpdatingRefills(true);
+        try {
+            const res = await fetch(`${getApiBaseUrl()}/admin/orders/${order.id}/refills`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ refills_remaining: val })
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || "Failed to update refills");
+            }
+
+            toast.success("Refills remaining updated successfully");
+            setIsEditingRefills(false);
+            onSuccess();
+        } catch (error: any) {
+            toast.error(error.message);
+        } finally {
+            setUpdatingRefills(false);
+        }
+    };
+
     return (
         <>
             <Dialog open={open} onOpenChange={onOpenChange}>
@@ -112,7 +147,8 @@ export function OrderDetailsDialog({ order, open, onOpenChange, onSuccess }: Ord
                             <div className="col-span-2 flex flex-col">
                                 <span>{order.serviceName}</span>
                                 <span className="text-muted-foreground text-xs">Display ID: {order.displayId}</span>
-                                <span className="text-muted-foreground text-xs">Provider ID: {order.serviceId}</span>
+                                <span className="text-muted-foreground text-xs">Provider Order ID: #{order.providerOrderId || 'N/A'}</span>
+                                <span className="text-muted-foreground text-xs">Source Service ID: {order.serviceId}</span>
                             </div>
                         </div>
                         <div className="grid grid-cols-3 items-center gap-4">
@@ -131,6 +167,40 @@ export function OrderDetailsDialog({ order, open, onOpenChange, onSuccess }: Ord
                             <div className="grid grid-cols-3 items-center gap-4">
                                 <span className="font-semibold">Link:</span>
                                 <a href={order.link} target="_blank" className="col-span-2 text-blue-500 hover:underline truncate">{order.link}</a>
+                            </div>
+                        )}
+                        {order.serviceRefillEnabled && (
+                            <div className="grid grid-cols-3 items-center gap-4">
+                                <span className="font-semibold">Refills Left:</span>
+                                <div className="col-span-2 flex items-center gap-2">
+                                    {isEditingRefills ? (
+                                        <>
+                                            <Input
+                                                type="number"
+                                                className="w-20 h-8"
+                                                value={refillsValue}
+                                                onChange={(e) => setRefillsValue(e.target.value)}
+                                                min={0}
+                                            />
+                                            <Button size="sm" onClick={handleSaveRefills} disabled={updatingRefills}>
+                                                {updatingRefills ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
+                                            </Button>
+                                            <Button size="sm" variant="ghost" onClick={() => setIsEditingRefills(false)} disabled={updatingRefills}>
+                                                Cancel
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="font-mono">{order.refillsRemaining ?? 0}</span>
+                                            <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => {
+                                                setRefillsValue((order.refillsRemaining ?? 0).toString());
+                                                setIsEditingRefills(true);
+                                            }}>
+                                                Edit
+                                            </Button>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>

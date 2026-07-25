@@ -21,6 +21,7 @@ export type Order = {
   remains?: number;
   serviceType?: string;
   category?: string;
+  pendingCancel?: boolean;
 };
 
 interface OrdersCardProps {
@@ -35,9 +36,16 @@ const getOrderTitle = (o: Order): string => {
   if (o.displayTitle) return o.displayTitle;
 
   if (o.category && o.category.trim() !== "" && o.category.toLowerCase() !== "default" && o.category.toLowerCase() !== "bestselling") {
-    // Some categories might just be "views" - if so we capitalize it and maybe prefix
-    if (o.category.toLowerCase() === "views" || o.category.toLowerCase() === "likes") {
-       return `Instagram ${o.category.charAt(0).toUpperCase() + o.category.slice(1)}`;
+    const catLower = o.category.toLowerCase();
+    if (["views", "likes", "followers", "comments", "saves", "shares"].includes(catLower)) {
+      const haystack = `${o.serviceName || ""} ${o.category}`.toLowerCase();
+      let platform = "Instagram"; // Default
+      if (/facebook|\bfb\b/.test(haystack)) platform = "Facebook";
+      else if (/youtube|\byt\b/.test(haystack)) platform = "YouTube";
+      else if (/tiktok|\btt\b/.test(haystack)) platform = "TikTok";
+      else if (/telegram|\btg\b/.test(haystack)) platform = "Telegram";
+      else if (/twitter|\bx\b/.test(haystack)) platform = "X";
+      return `${platform} ${o.category.charAt(0).toUpperCase() + o.category.slice(1)}`;
     }
     return o.category;
   }
@@ -84,7 +92,9 @@ const getServiceTypeIcon = (serviceType: string = ""): string => {
 
 const OrdersCard: React.FC<OrdersCardProps> = ({ orders = [], onCancel, cancellingId, variant = "list" }) => {
   const { convertPrice } = useAuth();
-  const renderStatus = (s: string) => {
+  const renderStatus = (o: Order) => {
+    if (o.pendingCancel) return "Canceling";
+    const s = o.status;
     switch (s) {
       case "completed": return "Completed";
       case "active": return "Active";
@@ -98,7 +108,9 @@ const OrdersCard: React.FC<OrdersCardProps> = ({ orders = [], onCancel, cancelli
     }
   };
 
-  const mapStatusForClass = (s: string) => {
+  const mapStatusForClass = (o: Order) => {
+    if (o.pendingCancel) return "active"; // use active color for canceling
+    const s = o.status;
     if (s === 'canceled') return 'failed';
     if (s === 'refunded') return 'failed';
     if (s === 'processing') return 'active';
@@ -130,7 +142,7 @@ const OrdersCard: React.FC<OrdersCardProps> = ({ orders = [], onCancel, cancelli
         ) : (
           orders.map((o) => {
             return (
-              <div key={o.id} className={`order-card ${mapStatusForClass(o.status)}`}>
+              <div key={o.id} className={`order-card ${mapStatusForClass(o)}`}>
                 <div className="order-card-top">
                   <div className="order-info-group">
                     <img src={getPlatformIcon(o.serviceName)} alt="Platform" className="platform-icon" />
@@ -142,8 +154,8 @@ const OrdersCard: React.FC<OrdersCardProps> = ({ orders = [], onCancel, cancelli
                     </div>
                   </div>
                   <div className={`status-badge`}>
-                    <div className={`glow ${mapStatusForClass(o.status)}`}></div>
-                    <span className={mapStatusForClass(o.status)}>{renderStatus(o.status)}</span>
+                    <div className={`glow ${mapStatusForClass(o)}`}></div>
+                    <span className={mapStatusForClass(o)}>{renderStatus(o)}</span>
                   </div>
                 </div>
 

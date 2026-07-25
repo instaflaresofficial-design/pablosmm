@@ -12,9 +12,10 @@ import (
 	"strings"
 	"time"
 
+	"pablosmm/backend/internal/db/sqlc"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"pablosmm/backend/internal/db/sqlc"
 )
 
 type DepositReq struct {
@@ -35,30 +36,6 @@ type WalletRequest struct {
 	CreatedAt     time.Time `json:"created_at"`
 }
 
-// generateUniqueAmount adds random paise (0.01-0.99) to the requested amount
-// and ensures no other pending request has the same unique amount within a 30-min window.
-func (h *Handler) generateUniqueAmount(ctx context.Context, baseAmount float64) (float64, error) {
-	for attempts := 0; attempts < 50; attempts++ {
-		// Generate random paise between 1 and 99
-		paise := rand.Intn(99) + 1
-		uniqueAmount := baseAmount + float64(paise)/100.0
-		// Round to 2 decimal places
-		uniqueAmount = math.Round(uniqueAmount*100) / 100
-
-		// Check if this unique amount is already used by a pending request in the last 30 minutes
-		count, err := h.db.Queries.CheckUniqueAmount(ctx, func() pgtype.Numeric { n := pgtype.Numeric{}; n.Scan(fmt.Sprintf("%f", uniqueAmount)); return n }())
-		if err != nil {
-			return 0, fmt.Errorf("failed to check unique amount: %w", err)
-		}
-
-		if count == 0 {
-			return uniqueAmount, nil
-		}
-	}
-	// Fallback: just return base + random (extremely unlikely to collide after 50 tries)
-	return baseAmount + float64(rand.Intn(99)+1)/100.0, nil
-}
-
 // RequestDeposit allows user to submit a manual UPI payment request
 func (h *Handler) RequestDeposit(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value("userID").(int)
@@ -73,7 +50,7 @@ func (h *Handler) RequestDeposit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Rate limit: max 3 pending requests per user
+	// Rate limit: max 10 pending requests per user
 	pendingCount, _ := h.db.Queries.CheckPendingRequestCount(context.Background(), pgtype.Int4{Int32: int32(userID), Valid: true})
 
 	if pendingCount >= 10 {
@@ -84,22 +61,22 @@ func (h *Handler) RequestDeposit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := context.Background()
-
-	// Generate unique amount for UPI method
-	var uniqueAmount *float64
 	var upiID string
 
 	if req.Method == "UPI" {
-		ua, err := h.generateUniqueAmount(ctx, req.Amount)
-		if err != nil {
-			log.Printf("Failed to generate unique amount: %v", err)
-			http.Error(w, "Failed to process request", http.StatusInternalServerError)
-			return
-		}
-		uniqueAmount = &ua
-
-		// Pick a random UPI ID from config
-		if h.cfg.UPIIDs != "" {
+		// Check global_settings first
+		setting, err := h.db.Queries.GetSetting(ctx, "upi_id")
+		if err == nil && setting != "" {
+			// Found in DB
+			ids := strings.Split(setting, ",")
+			for i := range ids {
+				ids[i] = strings.TrimSpace(ids[i])
+			}
+			if len(ids) > 0 {
+				upiID = ids[rand.Intn(len(ids))]
+			}
+		} else if h.cfg.UPIIDs != "" {
+			// Fallback to env config
 			ids := strings.Split(h.cfg.UPIIDs, ",")
 			for i := range ids {
 				ids[i] = strings.TrimSpace(ids[i])
@@ -125,11 +102,9 @@ func (h *Handler) RequestDeposit(w http.ResponseWriter, r *http.Request) {
 		txnID = pgtype.Text{String: req.TransactionID, Valid: true}
 	}
 
+	// UniqueAmount is no longer used, we just pass NULL (invalid pgtype.Numeric)
 	var ua pgtype.Numeric
-	if uniqueAmount != nil {
-		ua.Scan(fmt.Sprintf("%f", *uniqueAmount))
-	}
-	
+
 	requestID, err := h.db.Queries.InsertWalletRequest(ctx, sqlc.InsertWalletRequestParams{
 		UserID:        pgtype.Int4{Int32: int32(userID), Valid: true},
 		Amount:        func() pgtype.Numeric { n := pgtype.Numeric{}; n.Scan(fmt.Sprintf("%f", req.Amount)); return n }(),
@@ -149,9 +124,6 @@ func (h *Handler) RequestDeposit(w http.ResponseWriter, r *http.Request) {
 		"request_id": requestID,
 	}
 
-	if uniqueAmount != nil {
-		response["unique_amount"] = *uniqueAmount
-	}
 	if upiID != "" {
 		response["upi_id"] = upiID
 	}
@@ -203,7 +175,61 @@ func (h *Handler) UpdateDepositUTR(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]string{"message": "UTR updated successfully"})
+	// NEW: Check if this UTR was already received by the Android app
+	notification, err := h.db.Queries.GetUnmatchedUPINotification(context.Background(), pgtype.Text{String: req.TransactionID, Valid: true})
+	if err == nil {
+		// Found it! Let's verify the amount
+		reqAmount, err := h.db.Queries.GetWalletRequestAmount(context.Background(), int32(req.RequestID))
+		if err == nil {
+			reqAmtFloat, _ := reqAmount.Float64Value()
+			notifAmtFloat, _ := notification.Amount.Float64Value()
+
+			// If amount matches within tolerance, auto-approve!
+			if math.Abs(reqAmtFloat.Float64-notifAmtFloat.Float64) < 0.02 {
+				log.Printf("[UPI-NOTIFY] Late match! Request %d matched with UTR %s", req.RequestID, req.TransactionID)
+
+				tx, err := h.db.Pool.Begin(context.Background())
+				if err == nil {
+					defer tx.Rollback(context.Background())
+					qtx := h.db.Queries.WithTx(tx)
+
+					// Update request status
+					qtx.UpdateWalletRequestStatusAndTxn(context.Background(), sqlc.UpdateWalletRequestStatusAndTxnParams{
+						Status:        pgtype.Text{String: "approved", Valid: true},
+						TransactionID: pgtype.Text{String: req.TransactionID, Valid: true},
+						ID:            int32(req.RequestID),
+					})
+
+					// Credit wallet
+					amountCents := int(reqAmtFloat.Float64 * 100)
+					qtx.UpsertWalletBalance(context.Background(), sqlc.UpsertWalletBalanceParams{
+						UserID:  int32(userID),
+						Balance: int32(amountCents),
+					})
+
+					// Log transaction
+					qtx.InsertTransaction(context.Background(), sqlc.InsertTransactionParams{
+						UserID:      pgtype.Int4{Int32: int32(userID), Valid: true},
+						Amount:      func() pgtype.Numeric { n := pgtype.Numeric{}; n.Scan(fmt.Sprintf("%f", reqAmtFloat.Float64)); return n }(),
+						Type:        "credit",
+						Description: pgtype.Text{String: "UPI Deposit (Auto-Verified)", Valid: true},
+					})
+
+					// Update notification status
+					qtx.MarkUPINotificationMatched(context.Background(), sqlc.MarkUPINotificationMatchedParams{
+						MatchedRequestID: pgtype.Int4{Int32: int32(req.RequestID), Valid: true},
+						ID:               notification.ID,
+					})
+
+					tx.Commit(context.Background())
+					json.NewEncoder(w).Encode(map[string]string{"message": "Payment verified automatically!", "status": "approved"})
+					return
+				}
+			}
+		}
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{"message": "UTR updated successfully", "status": "pending"})
 }
 
 // UPINotification is the payload sent by the Android notification listener app
@@ -266,9 +292,8 @@ func (h *Handler) AutoVerifyDeposit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 4. Try to match against pending wallet_requests by unique_amount
-	// Match within a 30-minute window with ±0.01 tolerance
-	matchRow, err := h.db.Queries.FindMatchingWalletRequest(ctx, func() pgtype.Numeric { n := pgtype.Numeric{}; n.Scan(fmt.Sprintf("%f", notif.Amount)); return n }())
+	// 4. Try to match against pending wallet_requests by UTR
+	matchRow, err := h.db.Queries.FindMatchingWalletRequestByUTR(ctx, pgtype.Text{String: notif.UTR, Valid: true})
 
 	if err != nil {
 		// No matching pending request found — log as unmatched
@@ -287,7 +312,7 @@ func (h *Handler) AutoVerifyDeposit(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	reqID := int(matchRow.ID)
 	userID := int(matchRow.UserID.Int32)
 	reqAmount, _ := matchRow.Amount.Float64Value()

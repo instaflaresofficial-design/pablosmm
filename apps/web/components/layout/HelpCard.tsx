@@ -5,9 +5,10 @@ interface HelpCardProps {
   onCancel?: () => void;
   isCancelable?: boolean;
   isCanceling?: boolean;
+  customCancelText?: string;
 }
 
-const HelpCard: React.FC<HelpCardProps> = ({ onCancel, isCancelable = false, isCanceling = false }) => {
+const HelpCard: React.FC<HelpCardProps> = ({ onCancel, isCancelable = false, isCanceling = false, customCancelText }) => {
   return (
     <div className='help-card'>
         <div className="text-container">
@@ -19,9 +20,9 @@ const HelpCard: React.FC<HelpCardProps> = ({ onCancel, isCancelable = false, isC
                     <span>Contact Support</span>
                 </button>
                 {isCancelable && (
-                  <button className='cta-help cancel' onClick={onCancel} disabled={isCanceling}>
+                  <button className='cta-help cancel' onClick={onCancel} disabled={isCanceling || !!customCancelText}>
                       <div className="circle"></div>
-                      <span>{isCanceling ? "Canceling..." : "Cancel Order"}</span>
+                      <span>{customCancelText ? customCancelText : (isCanceling ? "Canceling..." : "Cancel Order")}</span>
                   </button>
                 )}
             </div>

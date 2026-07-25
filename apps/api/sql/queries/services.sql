@@ -18,9 +18,9 @@ SELECT COALESCE(SUM(
 INSERT INTO service_overrides (
     source_service_id, display_name, display_description, rate_multiplier, is_hidden, 
     category, tags, provider_category, display_id, refill, cancel, dripfeed, service_type,
-    targeting, quality, stability, updated_at
+    targeting, quality, stability, refill_limit, updated_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CURRENT_TIMESTAMP)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, CURRENT_TIMESTAMP)
 ON CONFLICT (source_service_id) 
 DO UPDATE SET 
     display_name = EXCLUDED.display_name,
@@ -38,6 +38,7 @@ DO UPDATE SET
     targeting = EXCLUDED.targeting,
     quality = EXCLUDED.quality,
     stability = EXCLUDED.stability,
+    refill_limit = EXCLUDED.refill_limit,
     updated_at = CURRENT_TIMESTAMP;
 
 -- name: BulkUpsertServiceOverride :exec
@@ -45,7 +46,7 @@ INSERT INTO service_overrides (
     source_service_id, display_name, display_description, rate_multiplier, is_hidden, 
     category, tags, provider_category, display_id, 
     refill, cancel, dripfeed, service_type,
-    targeting, quality, stability, updated_at
+    targeting, quality, stability, refill_limit, updated_at
 )
 VALUES ($1, 
     COALESCE($2, ''),
@@ -63,6 +64,7 @@ VALUES ($1,
     COALESCE($14, ''),
     COALESCE($15, ''),
     COALESCE($16, ''),
+    COALESCE($17, 3),
     CURRENT_TIMESTAMP)
 ON CONFLICT (source_service_id) 
 DO UPDATE SET 
@@ -81,6 +83,7 @@ DO UPDATE SET
     targeting = COALESCE(EXCLUDED.targeting, service_overrides.targeting),
     quality = COALESCE(EXCLUDED.quality, service_overrides.quality),
     stability = COALESCE(EXCLUDED.stability, service_overrides.stability),
+    refill_limit = COALESCE(EXCLUDED.refill_limit, service_overrides.refill_limit),
     updated_at = CURRENT_TIMESTAMP;
 
 -- name: IncrementServicePurchaseCount :exec
@@ -90,4 +93,4 @@ ON CONFLICT (source_service_id)
 DO UPDATE SET purchase_count = service_overrides.purchase_count + 1, updated_at = CURRENT_TIMESTAMP;
 
 -- name: GetAllServiceOverrides :many
-SELECT source_service_id, display_name, display_description, rate_multiplier, is_hidden, category, tags, provider_category, purchase_count, display_id, refill, cancel, dripfeed, service_type, targeting, quality, stability FROM service_overrides;
+SELECT source_service_id, display_name, display_description, rate_multiplier, is_hidden, category, tags, provider_category, purchase_count, display_id, refill, cancel, dripfeed, service_type, targeting, quality, stability, refill_limit FROM service_overrides;

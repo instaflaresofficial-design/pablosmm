@@ -27,6 +27,7 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMetadata, setLoadingMetadata] = useState(false);
   const [canceling, setCanceling] = useState(false);
+  const [refilling, setRefilling] = useState(false);
   
   const { services } = useNormalizedServices();
   const { convertPrice, fxRate } = useAuth();
@@ -77,7 +78,7 @@ export default function OrderDetailPage() {
       const res = await fetch(`${getApiBaseUrl()}/orders/${order.id}/cancel`, { method: "POST", credentials: "include" });
       const data = await res.json();
       if (res.ok) {
-        toast.success(data.message || "Order canceled successfully");
+        toast.success(data.message || "Cancellation request submitted");
         // Refetch order to update status
         const fetchRes = await fetch(`${getApiBaseUrl()}/orders/${id}`, { credentials: "include" });
         if (fetchRes.ok) {
@@ -91,6 +92,56 @@ export default function OrderDetailPage() {
       toast.error(err.message || "Error canceling order");
     } finally {
       setCanceling(false);
+    }
+  };
+
+  const handleRefill = async () => {
+    if (!order) return;
+    
+    // Check constraints here so we can show user-friendly toasts instead of a dead button
+    const orderDate = order?.date ? new Date(order.date) : new Date();
+    const expiryDate = new Date(orderDate);
+    expiryDate.setDate(expiryDate.getDate() + 30);
+    const now = new Date();
+    const daysLeft = Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 3600 * 24)));
+    const matchingService = services.find((s) => s.id === order.serviceId || s.sourceServiceId === order.serviceId);
+    
+    if (!matchingService?.refill) {
+      toast.error("This service does not support refills.");
+      return;
+    }
+    if (daysLeft <= 0) {
+      toast.error("Refill period (30 days) has expired for this order.");
+      return;
+    }
+    if (order.pendingRefill) {
+      toast.error("You already have a pending refill request.");
+      return;
+    }
+    if ((order.refillsRemaining ?? 3) <= 0) {
+      toast.error("You have no refills left for this order.");
+      return;
+    }
+
+    try {
+      setRefilling(true);
+      const res = await fetch(`${getApiBaseUrl()}/orders/${order.id}/refill`, { method: "POST", credentials: "include" });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || "Refill request submitted");
+        // Refetch order to update status
+        const fetchRes = await fetch(`${getApiBaseUrl()}/orders/${id}`, { credentials: "include" });
+        if (fetchRes.ok) {
+          const freshData = await fetchRes.json();
+          setOrder(freshData.order);
+        }
+      } else {
+        toast.error(data.message || data.error || "Failed to submit refill request");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Error submitting refill request");
+    } finally {
+      setRefilling(false);
     }
   };
 
@@ -128,10 +179,17 @@ export default function OrderDetailPage() {
   const rawServiceName = order.displayName || matchingService?.displayName || matchingService?.providerName || order.serviceName || "";
   
   const getCleanServiceName = () => {
-    // If the category is explicitly set and meaningful (and not a generic category like Bestselling), use it directly!
     if (order.category && order.category.trim() !== "" && order.category.toLowerCase() !== "default" && order.category.toLowerCase() !== "bestselling") {
-      if (order.category.toLowerCase() === "views" || order.category.toLowerCase() === "likes") {
-        return `Instagram ${order.category.charAt(0).toUpperCase() + order.category.slice(1)}`;
+      const catLower = order.category.toLowerCase();
+      if (["views", "likes", "followers", "comments", "saves", "shares"].includes(catLower)) {
+        const haystack = `${rawServiceName} ${order.category}`.toLowerCase();
+        let platform = "Instagram"; // Default
+        if (/facebook|\bfb\b/.test(haystack)) platform = "Facebook";
+        else if (/youtube|\byt\b/.test(haystack)) platform = "YouTube";
+        else if (/tiktok|\btt\b/.test(haystack)) platform = "TikTok";
+        else if (/telegram|\btg\b/.test(haystack)) platform = "Telegram";
+        else if (/twitter|\bx\b/.test(haystack)) platform = "X";
+        return `${platform} ${order.category.charAt(0).toUpperCase() + order.category.slice(1)}`;
       }
       return order.category;
     }
@@ -175,6 +233,9 @@ export default function OrderDetailPage() {
     calculatedRatePer1000Inr = ((order.charge || order.amount) / order.quantity) * 1000;
   }
   const getStatusMessage = (status: string) => {
+    if (order.pendingCancel) {
+      return "Your order is under cancellation! The amount will be automatically added to your wallet once it has been cancelled.";
+    }
     switch (status) {
       case "completed": return "Your order has been completed!";
       case "active":
@@ -305,10 +366,8 @@ export default function OrderDetailPage() {
     <div className="order-detail-page">
       {/* ─── Header ─── */}
       <div className="order-detail-header">
-        <div className="detail-btn">
-          <Link href={"/orders"}>
-            <Image src="/icons/back.png" alt="Back" width={24} height={24} />
-          </Link>
+        <div className="detail-btn" onClick={() => router.back()} style={{ cursor: 'pointer' }}>
+          <Image src="/icons/back.png" alt="Back" width={24} height={24} />
         </div>
         <h3 className="title">Order Details</h3>
         <div className="detail-btn">
@@ -484,7 +543,7 @@ export default function OrderDetailPage() {
         return (
           <>
             {/* Refill Card */}
-            {matchingService?.refill && (
+            {matchingService?.refill && (matchingService?.refillLimit === undefined || matchingService?.refillLimit > 0) && (
               <div className="refill-card">
                 <div className="refill-card-top">
                   <div className="refill-info-group">
@@ -517,7 +576,7 @@ export default function OrderDetailPage() {
                     </div>
                     <div className="item-detail-wrapper">
                       <span>Refill Left</span>
-                      <p>3 Refills</p>
+                      <p>{order?.refillsRemaining ?? 3} Refills</p>
                     </div>
                   </div>
 
@@ -533,9 +592,17 @@ export default function OrderDetailPage() {
                 </div>
 
                 <div className="refill-action-row">
-                  <button className='request-refill-btn' disabled={!isActiveRefill}>
-                    <Image src="/orders/request-refill.png" alt="Request Refill" width={16} height={16} />
-                    Request Refill
+                  <button 
+                    className='request-refill-btn' 
+                    disabled={refilling} 
+                    onClick={handleRefill}
+                  >
+                    {refilling ? (
+                      <Loader2 className="animate-spin" size={16} style={{ marginRight: 8 }} />
+                    ) : (
+                      <Image src="/orders/request-refill.png" alt="Request Refill" width={16} height={16} />
+                    )}
+                    {order?.pendingRefill ? 'Refill Requested' : refilling ? 'Requesting...' : 'Request Refill'}
                   </button>
                   <p className="note"><span>NOTE: </span>Refill topups automatically every month</p>
                 </div>    
@@ -558,7 +625,7 @@ export default function OrderDetailPage() {
                 completeTime: matchingService?.averageTime ? `${Math.round(matchingService.averageTime / 60)} mins` : "~45 mins",
                 completeTimeSubtitle: "Estimated",
                 refillDuration: matchingService?.refill ? "30 Days" : "None",
-                refillDurationSubtitle: matchingService?.refill ? "3 times/mo" : "No refill",
+                refillDurationSubtitle: matchingService?.refill && matchingService?.refillLimit !== undefined && matchingService?.refillLimit > 0 ? `${matchingService.refillLimit} times/mo` : (matchingService?.refill ? "Unlimited/Custom" : "No refill"),
                 minOrder: matchingService?.min ? matchingService.min.toLocaleString() : "50",
                 minOrderSubtitle: "Minimum Quantity",
                 maxOrder: matchingService?.max ? matchingService.max.toLocaleString() : "50,000",
@@ -576,8 +643,9 @@ export default function OrderDetailPage() {
 
       <HelpCard 
         onCancel={handleCancel} 
-        isCancelable={!!(matchingService?.cancel && (order.status === 'pending' || order.status === 'processing' || order.status === 'submitted' || order.status === 'active'))} 
-        isCanceling={canceling} 
+        isCancelable={!!(matchingService?.cancel && (order.status === 'pending' || order.status === 'processing' || order.status === 'submitted' || order.status === 'active')) && !order.pendingCancel} 
+        isCanceling={canceling}
+        customCancelText={order?.pendingCancel ? "Cancel Requested" : undefined}
       />
       
     </div>

@@ -16,7 +16,7 @@ INSERT INTO service_overrides (
     source_service_id, display_name, display_description, rate_multiplier, is_hidden, 
     category, tags, provider_category, display_id, 
     refill, cancel, dripfeed, service_type,
-    targeting, quality, stability, updated_at
+    targeting, quality, stability, refill_limit, updated_at
 )
 VALUES ($1, 
     COALESCE($2, ''),
@@ -34,6 +34,7 @@ VALUES ($1,
     COALESCE($14, ''),
     COALESCE($15, ''),
     COALESCE($16, ''),
+    COALESCE($17, 3),
     CURRENT_TIMESTAMP)
 ON CONFLICT (source_service_id) 
 DO UPDATE SET 
@@ -52,6 +53,7 @@ DO UPDATE SET
     targeting = COALESCE(EXCLUDED.targeting, service_overrides.targeting),
     quality = COALESCE(EXCLUDED.quality, service_overrides.quality),
     stability = COALESCE(EXCLUDED.stability, service_overrides.stability),
+    refill_limit = COALESCE(EXCLUDED.refill_limit, service_overrides.refill_limit),
     updated_at = CURRENT_TIMESTAMP
 `
 
@@ -72,6 +74,7 @@ type BulkUpsertServiceOverrideParams struct {
 	Column14        interface{} `json:"column_14"`
 	Column15        interface{} `json:"column_15"`
 	Column16        interface{} `json:"column_16"`
+	Column17        interface{} `json:"column_17"`
 }
 
 func (q *Queries) BulkUpsertServiceOverride(ctx context.Context, arg BulkUpsertServiceOverrideParams) error {
@@ -92,12 +95,13 @@ func (q *Queries) BulkUpsertServiceOverride(ctx context.Context, arg BulkUpsertS
 		arg.Column14,
 		arg.Column15,
 		arg.Column16,
+		arg.Column17,
 	)
 	return err
 }
 
 const getAllServiceOverrides = `-- name: GetAllServiceOverrides :many
-SELECT source_service_id, display_name, display_description, rate_multiplier, is_hidden, category, tags, provider_category, purchase_count, display_id, refill, cancel, dripfeed, service_type, targeting, quality, stability FROM service_overrides
+SELECT source_service_id, display_name, display_description, rate_multiplier, is_hidden, category, tags, provider_category, purchase_count, display_id, refill, cancel, dripfeed, service_type, targeting, quality, stability, refill_limit FROM service_overrides
 `
 
 type GetAllServiceOverridesRow struct {
@@ -118,6 +122,7 @@ type GetAllServiceOverridesRow struct {
 	Targeting          pgtype.Text   `json:"targeting"`
 	Quality            pgtype.Text   `json:"quality"`
 	Stability          pgtype.Text   `json:"stability"`
+	RefillLimit        pgtype.Int4   `json:"refill_limit"`
 }
 
 func (q *Queries) GetAllServiceOverrides(ctx context.Context) ([]GetAllServiceOverridesRow, error) {
@@ -147,6 +152,7 @@ func (q *Queries) GetAllServiceOverrides(ctx context.Context) ([]GetAllServiceOv
 			&i.Targeting,
 			&i.Quality,
 			&i.Stability,
+			&i.RefillLimit,
 		); err != nil {
 			return nil, err
 		}
@@ -212,9 +218,9 @@ const upsertServiceOverride = `-- name: UpsertServiceOverride :exec
 INSERT INTO service_overrides (
     source_service_id, display_name, display_description, rate_multiplier, is_hidden, 
     category, tags, provider_category, display_id, refill, cancel, dripfeed, service_type,
-    targeting, quality, stability, updated_at
+    targeting, quality, stability, refill_limit, updated_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, CURRENT_TIMESTAMP)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, CURRENT_TIMESTAMP)
 ON CONFLICT (source_service_id) 
 DO UPDATE SET 
     display_name = EXCLUDED.display_name,
@@ -232,6 +238,7 @@ DO UPDATE SET
     targeting = EXCLUDED.targeting,
     quality = EXCLUDED.quality,
     stability = EXCLUDED.stability,
+    refill_limit = EXCLUDED.refill_limit,
     updated_at = CURRENT_TIMESTAMP
 `
 
@@ -252,6 +259,7 @@ type UpsertServiceOverrideParams struct {
 	Targeting          pgtype.Text   `json:"targeting"`
 	Quality            pgtype.Text   `json:"quality"`
 	Stability          pgtype.Text   `json:"stability"`
+	RefillLimit        pgtype.Int4   `json:"refill_limit"`
 }
 
 func (q *Queries) UpsertServiceOverride(ctx context.Context, arg UpsertServiceOverrideParams) error {
@@ -272,6 +280,7 @@ func (q *Queries) UpsertServiceOverride(ctx context.Context, arg UpsertServiceOv
 		arg.Targeting,
 		arg.Quality,
 		arg.Stability,
+		arg.RefillLimit,
 	)
 	return err
 }

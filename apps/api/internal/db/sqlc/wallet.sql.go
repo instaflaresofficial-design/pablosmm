@@ -68,6 +68,17 @@ func (q *Queries) CheckUniqueAmount(ctx context.Context, uniqueAmount pgtype.Num
 	return count, err
 }
 
+const countWalletTransactions = `-- name: CountWalletTransactions :one
+SELECT COUNT(*) FROM transactions WHERE user_id = $1
+`
+
+func (q *Queries) CountWalletTransactions(ctx context.Context, userID pgtype.Int4) (int64, error) {
+	row := q.db.QueryRow(ctx, countWalletTransactions, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createCryptomusWalletRequest = `-- name: CreateCryptomusWalletRequest :one
 INSERT INTO wallet_requests (user_id, amount, method, status)
 VALUES ($1, $2, 'cryptomus', 'pending')
@@ -119,7 +130,7 @@ SELECT id, user_id, amount FROM wallet_requests
 WHERE status = 'pending'
 AND method = 'UPI'
 AND unique_amount IS NOT NULL
-AND ABS(unique_amount - $1) < 0.02
+AND ABS(unique_amount - $1) < 0.005
 AND created_at > NOW() - INTERVAL '30 minutes'
 ORDER BY created_at DESC
 LIMIT 1
@@ -134,6 +145,28 @@ type FindMatchingWalletRequestRow struct {
 func (q *Queries) FindMatchingWalletRequest(ctx context.Context, uniqueAmount pgtype.Numeric) (FindMatchingWalletRequestRow, error) {
 	row := q.db.QueryRow(ctx, findMatchingWalletRequest, uniqueAmount)
 	var i FindMatchingWalletRequestRow
+	err := row.Scan(&i.ID, &i.UserID, &i.Amount)
+	return i, err
+}
+
+const findMatchingWalletRequestByUTR = `-- name: FindMatchingWalletRequestByUTR :one
+SELECT id, user_id, amount FROM wallet_requests
+WHERE status = 'pending'
+AND method = 'UPI'
+AND transaction_id = $1
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type FindMatchingWalletRequestByUTRRow struct {
+	ID     int32          `json:"id"`
+	UserID pgtype.Int4    `json:"user_id"`
+	Amount pgtype.Numeric `json:"amount"`
+}
+
+func (q *Queries) FindMatchingWalletRequestByUTR(ctx context.Context, transactionID pgtype.Text) (FindMatchingWalletRequestByUTRRow, error) {
+	row := q.db.QueryRow(ctx, findMatchingWalletRequestByUTR, transactionID)
+	var i FindMatchingWalletRequestByUTRRow
 	err := row.Scan(&i.ID, &i.UserID, &i.Amount)
 	return i, err
 }
@@ -238,6 +271,30 @@ func (q *Queries) GetRecentMoneyTransactions(ctx context.Context, userID pgtype.
 	return items, nil
 }
 
+const getUnmatchedUPINotification = `-- name: GetUnmatchedUPINotification :one
+SELECT id, amount, utr, sender_upi FROM upi_notifications
+WHERE utr = $1 AND status = 'unmatched' LIMIT 1
+`
+
+type GetUnmatchedUPINotificationRow struct {
+	ID        int32          `json:"id"`
+	Amount    pgtype.Numeric `json:"amount"`
+	Utr       pgtype.Text    `json:"utr"`
+	SenderUpi pgtype.Text    `json:"sender_upi"`
+}
+
+func (q *Queries) GetUnmatchedUPINotification(ctx context.Context, utr pgtype.Text) (GetUnmatchedUPINotificationRow, error) {
+	row := q.db.QueryRow(ctx, getUnmatchedUPINotification, utr)
+	var i GetUnmatchedUPINotificationRow
+	err := row.Scan(
+		&i.ID,
+		&i.Amount,
+		&i.Utr,
+		&i.SenderUpi,
+	)
+	return i, err
+}
+
 const getWalletBalance = `-- name: GetWalletBalance :one
 SELECT balance FROM wallets WHERE user_id = $1
 `
@@ -297,6 +354,43 @@ func (q *Queries) GetWalletRequestStatusForUpdate(ctx context.Context, id int32)
 	var status pgtype.Text
 	err := row.Scan(&status)
 	return status, err
+}
+
+const getWalletTransactions = `-- name: GetWalletTransactions :many
+SELECT id, user_id, amount, type, description, created_at FROM transactions WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
+`
+
+type GetWalletTransactionsParams struct {
+	UserID pgtype.Int4 `json:"user_id"`
+	Limit  int32       `json:"limit"`
+	Offset int32       `json:"offset"`
+}
+
+func (q *Queries) GetWalletTransactions(ctx context.Context, arg GetWalletTransactionsParams) ([]Transaction, error) {
+	rows, err := q.db.Query(ctx, getWalletTransactions, arg.UserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Transaction
+	for rows.Next() {
+		var i Transaction
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Amount,
+			&i.Type,
+			&i.Description,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertTransaction = `-- name: InsertTransaction :exec
@@ -439,6 +533,20 @@ func (q *Queries) ListWalletRequestsAdmin(ctx context.Context) ([]ListWalletRequ
 		return nil, err
 	}
 	return items, nil
+}
+
+const markUPINotificationMatched = `-- name: MarkUPINotificationMatched :exec
+UPDATE upi_notifications SET status = 'matched', matched_request_id = $1 WHERE id = $2
+`
+
+type MarkUPINotificationMatchedParams struct {
+	MatchedRequestID pgtype.Int4 `json:"matched_request_id"`
+	ID               int32       `json:"id"`
+}
+
+func (q *Queries) MarkUPINotificationMatched(ctx context.Context, arg MarkUPINotificationMatchedParams) error {
+	_, err := q.db.Exec(ctx, markUPINotificationMatched, arg.MatchedRequestID, arg.ID)
+	return err
 }
 
 const rejectWalletRequest = `-- name: RejectWalletRequest :exec
