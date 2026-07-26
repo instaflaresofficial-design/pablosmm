@@ -21,6 +21,7 @@ interface QuantitySliderProps {
   comments?: string[];
   setComments?: (c: string[]) => void;
   showComments?: boolean;
+  value?: number;
 }
 
 import CommentInput from "./CommentInput";
@@ -40,9 +41,18 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
   comments = [],
   setComments,
   showComments = false,
+  value
 }) => {
   const { formatMoneyCompact, convert, currency, usdToInr, convertToUsd } = useCurrency();
-  const [quantity, setQuantity] = useState<number>(1000);
+  const [internalQuantity, setInternalQuantity] = useState<number>(1000);
+  
+  const quantity = value !== undefined ? value : internalQuantity;
+  const setQuantity = (v: number) => {
+    if (value === undefined) {
+      setInternalQuantity(v);
+    }
+  };
+
   const [fillPercentage, setFillPercentage] = useState<number>(0);
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editingValue, setEditingValue] = useState<string>("");

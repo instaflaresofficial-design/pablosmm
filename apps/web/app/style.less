@@ -6,8 +6,16 @@
 @HBL: HBL;
 @HR: HR;
 @PB: PB;
+@PR: PR;
 
 @import url("https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap");
+
+@font-face {
+  font-family: PR;
+  src: url(../fonts/PR.ttf);
+  font-weight: normal;
+  font-style: normal;
+}
 
 @font-face {
   font-family: GB;
@@ -6922,11 +6930,11 @@ button:focus {
       }
     }
 
-    .tab-btn:nth-child(1) {
+    .tab-btn:first-of-type {
       border-radius: 300px 120px 100px 80px;
     }
 
-    .tab-btn:last-child {
+    .tab-btn:last-of-type {
       border-radius: 120px 300px 80px 100px;
     }
   }
@@ -7468,7 +7476,7 @@ button:focus {
             .price {
               font-family: @PB;
               color: #fff;
-              font-size: 1.25rem;
+              font-size: 1.62rem;
             }
 
             .per {
@@ -7515,7 +7523,7 @@ button:focus {
   .why-us-section {
     display: flex;
     flex-direction: column;
-    margin: 4px 12px 800px 12px;
+    margin: 4px 12px 16px 12px;
     background: #171717;
     border-radius: 24px;
     box-shadow: inset 0 1px #ffffff1a;
@@ -7640,14 +7648,32 @@ button:focus {
         }
 
         &.service {
-          border-top-right-radius: 16px;
+          border-top-right-radius: 0;
           border-bottom-left-radius: 16px;
-        }
-
-        &.support {
-          border-top-left-radius: 16px;
-          border-bottom-left-radius: 0px;
           border-bottom-right-radius: 16px;
+          flex-direction: column-reverse;
+          grid-column: span 2;
+          background: #060607;
+          gap: 4px;
+          min-height: 244px;
+          position: relative;
+
+          .text-container {
+            align-items: center;
+            padding: 0 0 16px;
+            gap: 6px;
+
+            h4 {
+              text-align: center;
+            }
+          }
+
+          .img-container {
+            img {
+              width: 100%;
+              height: auto;
+            }
+          }
         }
 
         .text-container {

@@ -125,6 +125,12 @@
   src: url(https://fonts.gstatic.com/s/inter/v20/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuBWYMZg.ttf) format('truetype');
 }
 @font-face {
+  font-family: PR;
+  src: url(../fonts/PR.ttf);
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
   font-family: GB;
   src: url(../fonts/GB.ttf);
   font-weight: normal;
@@ -5784,10 +5790,10 @@ button:focus {
   background: url("/tab-bottom.svg") no-repeat center center / cover;
   pointer-events: none;
 }
-.service-list-container .category-tabs .tab-btn:nth-child(1) {
+.service-list-container .category-tabs .tab-btn:first-of-type {
   border-radius: 300px 120px 100px 80px;
 }
-.service-list-container .category-tabs .tab-btn:last-child {
+.service-list-container .category-tabs .tab-btn:last-of-type {
   border-radius: 120px 300px 80px 100px;
 }
 .service-list-container .showing-label {
@@ -6258,7 +6264,7 @@ button:focus {
 .root .hero-section .platforms-section .services-grid .service-card .service-price .price {
   font-family: PB;
   color: #fff;
-  font-size: 1.25rem;
+  font-size: 1.62rem;
 }
 .root .hero-section .platforms-section .services-grid .service-card .service-price .per {
   font-family: GM;
@@ -6295,7 +6301,7 @@ button:focus {
 .root .why-us-section {
   display: flex;
   flex-direction: column;
-  margin: 4px 12px 800px 12px;
+  margin: 4px 12px 16px 12px;
   background: #171717;
   border-radius: 24px;
   box-shadow: inset 0 1px #ffffff1a;
@@ -6394,13 +6400,27 @@ button:focus {
   z-index: 2;
 }
 .root .why-us-section .why-us-cards-container .card.service {
-  border-top-right-radius: 16px;
+  border-top-right-radius: 0;
   border-bottom-left-radius: 16px;
-}
-.root .why-us-section .why-us-cards-container .card.support {
-  border-top-left-radius: 16px;
-  border-bottom-left-radius: 0px;
   border-bottom-right-radius: 16px;
+  flex-direction: column-reverse;
+  grid-column: span 2;
+  background: #060607;
+  gap: 4px;
+  min-height: 244px;
+  position: relative;
+}
+.root .why-us-section .why-us-cards-container .card.service .text-container {
+  align-items: center;
+  padding: 0 0 16px;
+  gap: 6px;
+}
+.root .why-us-section .why-us-cards-container .card.service .text-container h4 {
+  text-align: center;
+}
+.root .why-us-section .why-us-cards-container .card.service .img-container img {
+  width: 100%;
+  height: auto;
 }
 .root .why-us-section .why-us-cards-container .card .text-container {
   display: flex;

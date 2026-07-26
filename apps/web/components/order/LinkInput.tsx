@@ -6,14 +6,18 @@ import Image from 'next/image';
 interface LinkInputProps {
   onLinkChange: (link: string) => void;
   onContinue: () => void;
+  value?: string;
+  isSimulated?: boolean;
 }
 
-const LinkInput: React.FC<LinkInputProps> = ({ onLinkChange, onContinue }) => {
-  const [link, setLink] = useState('');
+const LinkInput: React.FC<LinkInputProps> = ({ onLinkChange, onContinue, value, isSimulated }) => {
+  const [localLink, setLocalLink] = useState('');
+
+  const displayLink = value !== undefined ? value : localLink;
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newLink = event.target.value;
-    setLink(newLink);
+    setLocalLink(newLink);
     onLinkChange(newLink); // Pass the link to the parent
   };
 
@@ -43,11 +47,12 @@ const LinkInput: React.FC<LinkInputProps> = ({ onLinkChange, onContinue }) => {
           <input
             type="text"
             placeholder="Paste your link here"
-            value={link}
+            value={displayLink}
             onChange={handleInputChange}
+            readOnly={isSimulated}
           />
         </div>
-        <button className='submit-btn' onClick={onContinue}>Continue</button>
+        <button className={`submit-btn ${isSimulated ? 'simulated-hover' : ''}`} onClick={onContinue}>Continue</button>
       </div>
     </div>
   );

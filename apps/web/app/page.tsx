@@ -1,4 +1,5 @@
 import Hero from '@/components/landing/Hero'
+import Howworks from '@/components/landing/Howworks'
 import Whyus from '@/components/landing/Whyus'
 import Header from '@/components/layout/Header'
 import React from 'react'
@@ -9,6 +10,7 @@ const LandingPage = () => {
         <Header />
         <Hero />
         <Whyus />
+        <Howworks />
     </div>
   )
 }
