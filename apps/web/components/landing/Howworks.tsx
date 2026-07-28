@@ -105,7 +105,7 @@ const Howworks = () => {
 
 
 
-  // â”€â”€ Derive scene state from progress â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ——————————————————————————————————————————————————————————————————————
   let step = 1;
   let activePlatform: Platform = 'instagram';
   let activeService: ServiceType = 'followers';
@@ -226,6 +226,12 @@ const Howworks = () => {
     }
   }
 
+  // Calculate exit slide up progress for Step 4
+  let phoneExitSlideProgress = 0;
+  if (progress > 0.88) {
+    phoneExitSlideProgress = Math.min(1, (progress - 0.88) / 0.12);
+  }
+
   const currentStep = STEPS[step - 1];
   const stepBarPct = `${(step / STEPS.length) * 100}%`;
 
@@ -246,10 +252,15 @@ const Howworks = () => {
           top: 0,
           height: '100lvh', // Use large viewport height so it doesn't jump when mobile address bar hides
           width: '100%',
-          overflow: 'hidden',
           backgroundColor: `rgba(0, 0, 0, ${enterProgress})`,
         }}
       >
+        <motion.div 
+          style={{ 
+            width: '100%', height: '100%', 
+            transform: `translateY(-${phoneExitSlideProgress * 28}vh)` 
+          }}
+        >
         {/* ── Intro Video Background ── */}
         <motion.div
           className="hw-video-container"
@@ -261,8 +272,9 @@ const Howworks = () => {
           }}
         >
           <video
-            src="/landing/how-works/bg.mp4"
+            src="/landing/how-works/bg.mp4#t=0.001"
             autoPlay loop muted playsInline
+            suppressHydrationWarning
           />
           {/* Overlay to tint the video with colors from bg.png */}
           <div
@@ -372,6 +384,7 @@ const Howworks = () => {
             </motion.div>
           </div>
         </div>
+        </motion.div>
       </div>
     </div>
   );

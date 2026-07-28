@@ -1,4 +1,5 @@
 "use client";
+import { motion, AnimatePresence } from 'framer-motion'
 import React, { useState } from 'react'
 import Image from 'next/image'
 import { FaYoutube, FaInstagram, FaFacebook, FaTiktok, FaTwitch, FaTelegram, FaSpotify, FaSoundcloud, FaReddit, FaLinkedin, FaDiscord, FaPinterest, FaSnapchat, FaPlay, FaThumbsUp, FaClock, FaUserPlus } from 'react-icons/fa'
@@ -82,8 +83,9 @@ const Hero = () => {
           muted 
           playsInline 
           className="hero-video"
+          suppressHydrationWarning
         >
-          <source src="/landing/hero.webm" type="video/webm" />
+          <source src="/landing/hero.webm#t=0.001" type="video/webm" />
         </video>
         <div className="platforms-section">
           <div className="platforms-container">
