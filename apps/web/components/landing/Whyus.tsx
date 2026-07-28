@@ -74,7 +74,7 @@ const CursorPointer = ({ activeCategory }: { activeCategory: string }) => {
       initial={false}
       animate={{ 
         left: getX(activeCategory),
-        y: '12px',
+        y: '28px',
         scale: [1, 0.8, 1]
       }}
       transition={{ 

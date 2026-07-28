@@ -11,6 +11,8 @@ const LandingPage = () => {
         <Hero />
         <Whyus />
         <Howworks />
+        {/* Scroll cushion: lets the root scroll all the way through the Howworks section */}
+        <div style={{ height: 'calc(100dvh - var(--bottom-nav-h, 96px))', flexShrink: 0 }} />
     </div>
   )
 }
