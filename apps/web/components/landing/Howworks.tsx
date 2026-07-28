@@ -31,6 +31,11 @@ const Howworks = () => {
   const [progress, setProgress] = useState(0);
   const [enterProgress, setEnterProgress] = useState(0);
 
+  // Cache dimensions to prevent mobile address bar jumpiness
+  const cachedViewportH = useRef<number>(0);
+  const cachedElH = useRef<number>(0);
+  const cachedRootW = useRef<number>(0);
+
   useEffect(() => {
     const root = document.querySelector('.root') as HTMLElement;
     if (!root || !outerRef.current) return;
@@ -48,8 +53,16 @@ const Howworks = () => {
       const elRect = el.getBoundingClientRect();
       const elTopRelativeToRoot = elRect.top - rootRect.top;
 
-      const viewportH = root.clientHeight;
-      const elH = el.clientHeight;
+      const currentRootW = root.clientWidth;
+      // Only update cached heights if width changed (real resize) or uninitialized
+      if (currentRootW !== cachedRootW.current || cachedViewportH.current === 0) {
+        cachedRootW.current = currentRootW;
+        cachedViewportH.current = root.clientHeight;
+        cachedElH.current = el.clientHeight;
+      }
+
+      const viewportH = cachedViewportH.current;
+      const elH = cachedElH.current;
 
       const scrollable = elH - viewportH;
       const scrolledIntoEl = -elTopRelativeToRoot;
@@ -118,16 +131,17 @@ const Howworks = () => {
   const videoTranslateY = videoScrollProgress * -30; // Moves up 30vh
   
   // 2. Text Centers (0 to 0.10)
-  const textTranslateY = 30 - videoScrollProgress * 30; // Starts at +30vh, ends at 0vh
-  
+  // 3. Text slides down as phone comes up to prevent it from peeking out the top
+  const phoneEntranceProgress = Math.min(1, Math.max(0, (progress - 0.15) / 0.15));
+  const textTranslateY = 30 - videoScrollProgress * 30 + (phoneEntranceProgress * 25); 
+
   // 3. Video Fades Out (0.10 to 0.15)
   const videoOpacity = 1 - Math.min(1, Math.max(0, (progress - 0.10) / 0.05));
-  
+
   // 4. Phone Comes Up (0.15 to 0.30)
-  const phoneEntranceProgress = Math.min(1, Math.max(0, (progress - 0.15) / 0.15));
   
-  // 5. Text Fades Out as Phone covers it (0.20 to 0.25)
-  const textOpacity = 1 - Math.min(1, Math.max(0, (progress - 0.20) / 0.05));
+  // 5. Text stays visible so the phone overlaps it
+  const textOpacity = 1; 
   
   // 6. Step Panel Fades In (0.25 to 0.30)
   const stepPanelOpacity = Math.min(1, Math.max(0, (progress - 0.25) / 0.05));
@@ -141,18 +155,18 @@ const Howworks = () => {
     step = 1;
     const sub = (progress - 0.30) / 0.20;
     if (sub < 0.25) {
-      cursorX = '50%'; cursorY = '95%'; // Start near bottom
+      cursorX = '50%'; cursorY = '35%'; // Start near bottom
     } else if (sub < 0.5) {
-      cursorX = '25%'; cursorY = '25%'; // Click Instagram
+      cursorX = '12%'; cursorY = '18%'; // Click Instagram
       activePlatform = 'instagram';
     } else if (sub < 0.75) {
-      cursorX = '65%'; cursorY = '45%'; // Click Followers
+      cursorX = '45%'; cursorY = '40%'; // Click Followers
       activeService = 'followers';
     } else {
       const scrollAnim = (sub - 0.75) / 0.25; // 0 to 1
       innerScrollY = scrollAnim * 180;
       
-      cursorX = '50%'; cursorY = '70%'; // Move down to input/continue button
+      cursorX = '50%'; cursorY = '84%'; // Move down to input/continue button
       activeVariant = 'any';
       link = 'instagram.com/pablosmmhq'; // Simulate typing link
     }
@@ -162,14 +176,14 @@ const Howworks = () => {
     link = 'instagram.com/pablosmmhq';
     const sub = (progress - 0.50) / 0.20;
     if (sub < 0.2) {
-      cursorX = '10%'; cursorY = '20%'; quantity = 1000; // Grab slider
+      cursorX = '9%'; cursorY = '25%'; quantity = 1000; // Grab slider
     } else if (sub < 0.7) {
       const drag = (sub - 0.2) / 0.5;
-      cursorX = `${10 + drag * 40}%`; cursorY = '20%'; // Drag slider
+      cursorX = `${10 + drag * 40}%`; cursorY = '25%'; // Drag slider
       quantity = Math.round(1000 + drag * 24000);
     } else {
       quantity = 25000;
-      cursorX = '82%'; cursorY = '55%'; // Move down, preparing to scroll
+      cursorX = '18%'; cursorY = '69%'; // Move down, preparing to scroll
     }
   } else if (progress < 0.88) {
     // Scene 3: View Details
@@ -177,17 +191,20 @@ const Howworks = () => {
     link = 'instagram.com/pablosmmhq';
     quantity = 25000;
     const sub = (progress - 0.70) / 0.18;
-    if (sub < 0.2) {
-      cursorX = '82%'; cursorY = '41%'; // Move to "View Details" on the 2nd card (scrolled up)
-      category = 'premium';
-    } else if (sub < 0.5) {
+    if (sub < 0.25) {
+      cursorX = '80%'; cursorY = '27%'; // Move to "Premium" tab
+      category = 'recommended';
+    } else if (sub < 0.55) {
+      category = 'premium'; // Clicked Premium
+      cursorX = '85%'; cursorY = '52%'; // Move to "View Details"
+    } else if (sub < 0.85) {
       category = 'premium';
       showServiceInfo = true; // Open ServiceInfo
       cursorX = '50%'; cursorY = '58%'; // View info
     } else {
       category = 'premium';
       showServiceInfo = true;
-      cursorX = '-4%'; cursorY = '7%'; // Click back button top-left
+      cursorX = '7%'; cursorY = '4%'; // Click back button top-left
     }
   } else {
     // Scene 4: Finish & Toast
@@ -197,12 +214,13 @@ const Howworks = () => {
     category = 'premium';
     const sub = (progress - 0.88) / 0.12;
     if (sub < 0.3) {
-      cursorX = '50%'; cursorY = '32%'; ordering = false; // Move to Order button
+      cursorX = '50%'; cursorY = '40%'; ordering = false; // Move to Order button
     } else if (sub < 0.6) {
-      cursorX = '50%'; cursorY = '32%';
+      cursorX = '50%'; cursorY = '45%';
       ordering = true; // Loading state
       showCursor = false;
     } else {
+      cursorX = '50%'; cursorY = '45%';
       showCursor = false;
       showToast = true; // Show Success Toast
     }
@@ -224,6 +242,11 @@ const Howworks = () => {
       <div
         className="hw-sticky-container"
         style={{
+          position: 'sticky',
+          top: 0,
+          height: '100lvh', // Use large viewport height so it doesn't jump when mobile address bar hides
+          width: '100%',
+          overflow: 'hidden',
           backgroundColor: `rgba(0, 0, 0, ${enterProgress})`,
         }}
       >
@@ -280,18 +303,21 @@ const Howworks = () => {
             className="hw-step-panel"
             style={{ opacity: stepPanelOpacity }}
           >
-            {/* Progress bar */}
+            {/* Progress bar (Full width at top) */}
+            <div className="hw-progress-track">
+              <motion.div
+                className="hw-progress-fill"
+                animate={{ width: stepBarPct }}
+                transition={{ type: 'spring', stiffness: 60, damping: 18 }}
+              />
+            </div>
+
+            {/* Step numbers row */}
             <div className="hw-step-progress-row">
               <span className="hw-step-num">
                 {currentStep.num}
               </span>
-              <div className="hw-progress-track">
-                <motion.div
-                  className="hw-progress-fill"
-                  animate={{ width: stepBarPct }}
-                  transition={{ type: 'spring', stiffness: 60, damping: 18 }}
-                />
-              </div>
+              <div style={{ flex: 1 }} />
               <span className="hw-step-total">04</span>
             </div>
 
@@ -321,8 +347,8 @@ const Howworks = () => {
             <motion.div
               className="hw-phone-inner"
               style={{
-                transform: `translateY(${(1 - phoneEntranceProgress) * 50}vh) scale(${0.9 + phoneEntranceProgress * 0.1})`,
-                opacity: phoneEntranceProgress,
+                transform: `translateY(${(1 - phoneEntranceProgress) * 100}vh) scale(${0.9 + phoneEntranceProgress * 0.1})`,
+                opacity: 1,
               }}
             >
               <PhoneMockup 

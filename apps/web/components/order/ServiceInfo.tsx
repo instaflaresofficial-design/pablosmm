@@ -292,21 +292,16 @@ export default function ServiceInfo({ services, index = 0, onChangeIndex, servic
 
   return (
     <div className='service-info-container'>
-      {total > 0 && onChangeIndex && (
-        <>
-          <div className="order-summary">
-            {onClose && (
-              <button 
-                onClick={onClose} 
-              >
-                <FiArrowLeft /> Go Back
-              </button>
-            )}
-            <h3 className='service-info-title' style={{ margin: 0 }}>{title}</h3>
-          </div>
-        </>
-      )}
-      {!onChangeIndex && (
+      {(onClose || (total > 0 && onChangeIndex)) ? (
+        <div className="order-summary">
+          {onClose && (
+            <button onClick={onClose}>
+              <FiArrowLeft /> Go Back
+            </button>
+          )}
+          <h3 className='service-info-title' style={{ margin: 0 }}>{title}</h3>
+        </div>
+      ) : (
         <h3 className='service-info-title'>{title}</h3>
       )}
       <div className="details-grid">

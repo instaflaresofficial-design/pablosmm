@@ -5906,7 +5906,7 @@ button:focus {
   flex-direction: column;
   align-items: flex-end;
   justify-content: space-between;
-  height: -webkit-fill-available;
+  align-self: stretch;
   line-height: 1;
 }
 .service-list-card .card-header .right .price {
@@ -7165,17 +7165,16 @@ button:focus {
   font-size: clamp(60px, 14.5vw, 110px);
 }
 .how-works .hw-intro-subtitle-row {
-  margin-top: 30px;
+  margin-top: 6px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   opacity: 0.8;
 }
 .how-works .hw-intro-subtitle {
-  color: #fff;
-  font-size: 11px;
-  font-family: GB;
-  letter-spacing: 1.5px;
+  color: #8a8a8a;
+  font-size: 9px;
+  font-family: GM;
   text-transform: uppercase;
 }
 .how-works .hw-mouse-icon {
@@ -7195,6 +7194,21 @@ button:focus {
   height: 4px;
   background: #fff;
   border-radius: 2px;
+  animation: hw-mouse-scroll 1.5s infinite;
+}
+@keyframes hw-mouse-scroll {
+  0% {
+    transform: translate(-50%, 0);
+    opacity: 0;
+  }
+  20% {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, 6px);
+    opacity: 0;
+  }
 }
 .how-works .hw-main-content {
   display: flex;
@@ -7205,7 +7219,7 @@ button:focus {
 .how-works .hw-step-panel {
   position: relative;
   z-index: 10;
-  padding: 24px 28px 0;
+  padding: 12px 9px 0;
   flex-shrink: 0;
   will-change: opacity;
 }
@@ -7213,67 +7227,77 @@ button:focus {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 9px;
 }
 .how-works .hw-step-num {
-  color: #7550e5;
+  color: #c2c2c2;
   font-size: 11px;
-  font-family: GB;
+  font-family: GM;
   letter-spacing: 1px;
   min-width: 22px;
 }
 .how-works .hw-step-total {
-  color: #333;
+  color: #565656;
   font-size: 11px;
-  font-family: GB;
+  font-family: GM;
   letter-spacing: 1px;
   min-width: 22px;
   text-align: right;
 }
 .how-works .hw-progress-track {
-  flex: 1;
-  height: 1px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
   background: rgba(255, 255, 255, 0.08);
-  position: relative;
-  border-radius: 1px;
 }
 .how-works .hw-progress-fill {
   position: absolute;
   inset: 0;
   height: 100%;
-  background: linear-gradient(to right, #7550e5, #00f2fe);
-  border-radius: 1px;
+  background: linear-gradient(90deg, #d56616 0%, #ebb514 17.97%, #b1d279 41.19%, #75dfc9 59.08%, #4daef6 78.03%, #3956db 93.24%);
 }
 .how-works .hw-step-title {
-  font-size: clamp(22px, 6.5vw, 30px);
-  line-height: 1.15;
+  font-size: clamp(18px, 2.5vw, 30px);
+  line-height: 18px;
   color: #fff;
   margin: 0 0 8px;
-  font-family: GB;
+  font-family: GPB;
   white-space: pre-line;
+  text-align: center;
+  text-transform: uppercase;
 }
 .how-works .hw-step-subtitle {
-  color: #555;
-  font-size: 13px;
+  color: #787878;
+  text-align: center;
+  width: 100%;
   margin: 0;
-  line-height: 1.6;
-  max-width: 320px;
+  font-family: GM;
+  font-size: 12px;
+  line-height: 13px;
+  white-space: pre-line;
+  padding: 0 64px;
 }
 .how-works .hw-phone-container {
   flex: 1;
   display: flex;
   justify-content: center;
-  align-items: flex-end;
+  align-items: flex-start;
   width: 100%;
   position: relative;
   z-index: 5;
+  margin-top: -9px;
 }
 .how-works .hw-phone-inner {
-  transform-origin: bottom center;
+  transform-origin: top center;
   width: 100%;
   max-width: 460px;
-  max-height: calc(100% + 120px);
   aspect-ratio: 1570 / 2932;
   will-change: transform, opacity;
-  margin-bottom: -120px;
+  margin-bottom: 0;
+  /* Remove empty space inside the phone screen so content fits perfectly */
+}
+.how-works .hw-phone-inner .order-page {
+  padding-top: 8px;
 }

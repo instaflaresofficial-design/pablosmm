@@ -53,7 +53,7 @@ const mockServices: NormalizedSmmService[] = [
 const FuturisticCursor = ({ x, y }: { x: string; y: string }) => (
   <motion.div
     animate={{ left: x, top: y }}
-    transition={{ type: 'spring', stiffness: 200, damping: 28 }}
+    transition={{ type: 'spring', stiffness: 85, damping: 20, mass: 1.1 }}
     style={{ position: 'absolute', zIndex: 200, pointerEvents: 'none' }}
   >
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
@@ -151,7 +151,7 @@ const IPhoneFrame = ({ children }: { children: React.ReactNode }) => {
         src="/landing/iphone.png"
         alt="iPhone mockup"
         fill
-        style={{ objectFit: 'contain', zIndex: 2, pointerEvents: 'none', userSelect: 'none' }}
+        style={{ objectFit: 'fill', zIndex: 2, pointerEvents: 'none', userSelect: 'none' }}
         priority
       />
     </div>
@@ -258,7 +258,7 @@ export default function PhoneMockup({
               style={{ position: 'absolute', inset: 0, zIndex: 100, background: '#0a0a0a', overflowY: 'auto' }}
               className="summary-container"
             >
-              <ServiceInfo services={mockServices} index={1} />
+              <ServiceInfo services={mockServices} index={0} onClose={() => {}} />
             </motion.div>
           )}
         </AnimatePresence>
