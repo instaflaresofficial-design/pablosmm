@@ -35,6 +35,15 @@ export default function RootLayout({
             gtag('config', 'G-S9HL88JSY2');
           `}
         </Script>
+        <Script id="sw-register" strategy="afterInteractive">
+          {`
+            if ('serviceWorker' in navigator) {
+              window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js');
+              });
+            }
+          `}
+        </Script>
         <CurrencyProvider>
           <AuthProvider>
             <RootShell>{children}</RootShell>

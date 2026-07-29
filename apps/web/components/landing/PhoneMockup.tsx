@@ -70,7 +70,7 @@ const FuturisticCursor = ({ x, y }: { x: string; y: string }) => (
   </motion.div>
 );
 
-const IPhoneFrame = ({ children }: { children: React.ReactNode }) => {
+export const IPhoneFrame = ({ children }: { children: React.ReactNode }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
 

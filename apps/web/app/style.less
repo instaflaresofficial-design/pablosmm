@@ -7941,3 +7941,271 @@ button:focus {
     }
   }
 }
+
+// ─────────────────────────────────────────────
+// INSTALL SECTION — Walbi-style download UI
+// ─────────────────────────────────────────────
+
+.install-section {
+  position: relative;
+  width: 100%;
+  min-height: 100lvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  gap: 40px;
+  overflow: hidden;
+}
+
+// ── Card wrapper with corner brackets
+.install-card-wrap {
+  position: relative;
+  width: 100%;
+  opacity: 0;
+  transform: translateY(28px);
+  height: 380px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition:
+    opacity 0.7s ease 0.2s,
+    transform 0.7s ease 0.2s;
+
+  &.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.corner {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+
+  &.tl {
+    top: 0;
+    left: 0;
+    border: 1px solid #fff;
+    border-radius: 12px 0 0 0;
+    inset: 0% auto auto 0%;
+    border-bottom-style: none;
+    border-right-style: none;
+  }
+  &.tr {
+    top: 0;
+    right: 0;
+    border: 1px solid #fff;
+    border-radius: 0 12px 0 0;
+    inset: 0% 0% auto auto;
+    border-bottom-style: none;
+    border-left-style: none;
+  }
+  &.bl {
+    bottom: 0;
+    left: 0;
+    border: 1px solid #fff;
+    border-radius: 0 0 0 12px;
+    inset: auto auto 0% 0%;
+    border-top-style: none;
+    border-right-style: none;
+  }
+  &.br {
+    bottom: 0;
+    right: 0;
+    border: 1px solid #fff;
+    border-radius: 0 0 12px 0;
+    inset: auto 0% 0% auto;
+    border-top-style: none;
+    border-left-style: none;
+  }
+}
+
+.install-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  box-shadow:
+    0 0 0 1px rgba(243, 216, 170, 0.15),
+    0 24px 60px rgba(0, 0, 0, 0.6),
+    0 4px 20px rgba(0, 0, 0, 0.4);
+  transform: scale(0.75);
+  max-width: 240px;
+}
+
+.qr-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.qr-img {
+  width: 160px;
+  height: 160px;
+  border-radius: 8px;
+  display: block;
+}
+
+.install-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  align-items: center;
+}
+
+.install-badge {
+  width: 100%;
+  height: 60px;
+  display: block;
+  border-radius: 8px;
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
+
+  &:active {
+    transform: scale(0.96);
+    opacity: 0.85;
+  }
+}
+
+.install-badge-btn {
+  all: unset;
+  display: block;
+  width: 100%;
+  cursor: pointer;
+
+  &:active .install-badge {
+    transform: scale(0.96);
+    opacity: 0.85;
+  }
+}
+
+.installed-badge {
+  width: 100%;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #111;
+  border-radius: 8px;
+  font-family: @GB;
+  font-size: 1rem;
+  color: #fff;
+  letter-spacing: 0.04em;
+}
+
+.install-bottom-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: @GPB;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  color: rgba(0, 0, 0, 0.3);
+  text-transform: uppercase;
+  margin-top: 8px;
+}
+
+// ── iOS Add-to-Home-Screen modal
+.ios-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+  backdrop-filter: blur(4px);
+  animation: fade-in 0.2s ease;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.ios-modal {
+  position: relative;
+  background: #fff;
+  border-radius: 20px 20px 16px 16px;
+  padding: 28px 24px 32px;
+  width: 100%;
+  max-width: 400px;
+  animation: slide-up 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.ios-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: #f0f0f0;
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: #555;
+  cursor: pointer;
+}
+
+.ios-modal-title {
+  font-family: @GB;
+  font-size: 1.1rem;
+  color: #111;
+  margin: 0 0 20px;
+  text-align: center;
+}
+
+.ios-modal-steps {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  li {
+    font-family: @GM;
+    font-size: 0.92rem;
+    color: #333;
+    line-height: 1.5;
+  }
+
+  strong {
+    color: #111;
+  }
+}
+
+.ios-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  color: #007aff;
+  margin: 0 2px;
+}
