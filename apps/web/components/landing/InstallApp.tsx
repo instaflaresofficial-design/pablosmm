@@ -146,7 +146,7 @@ const InstallApp = () => {
 
       {/* Sticky bottom label */}
       <div className="install-bottom-label">
-        <span>INSTALL</span>
+        <span>DOWNLOAD</span>
         <span className="install-icon-sm" aria-hidden="true">
           <span className="bar" /><span className="bar" /><span className="bar" /><span className="bar" /><span className="bar" />
         </span>
