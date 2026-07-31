@@ -140,8 +140,8 @@ const Howworks = () => {
 
   // 4. Phone Comes Up (0.15 to 0.30)
   
-  // 5. Text stays visible so the phone overlaps it
-  const textOpacity = 1; 
+  // 5. Text fades out smoothly as the phone comes up to prevent jittering overlaps
+  const textOpacity = 1 - Math.min(1, Math.max(0, (phoneEntranceProgress - 0.2) / 0.8)); 
   
   // 6. Step Panel Fades In (0.25 to 0.30)
   const stepPanelOpacity = Math.min(1, Math.max(0, (progress - 0.25) / 0.05));
@@ -233,7 +233,8 @@ const Howworks = () => {
   }
 
   const currentStep = STEPS[step - 1];
-  const stepBarPct = `${(step / STEPS.length) * 100}%`;
+  // Progress bar smoothly fills from 0 to 100% during the interactive scroll phase (progress 0.3 to 1.0)
+  const stepBarPct = `${Math.min(1, Math.max(0, (progress - 0.3) / 0.7)) * 100}%`;
 
   // Determine fade of intro text based on phone sliding up
   const introVisible = phoneEntranceProgress < 0.5;

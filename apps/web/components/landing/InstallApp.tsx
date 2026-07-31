@@ -1,6 +1,7 @@
 "use client";
 import React, { useRef, useEffect, useState } from 'react';
 import Image from 'next/image';
+import { motion } from 'framer-motion';
 
 // Extend window with the PWA install prompt event
 interface BeforeInstallPromptEvent extends Event {
@@ -10,7 +11,6 @@ interface BeforeInstallPromptEvent extends Event {
 
 const InstallApp = () => {
   const sectionRef = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
 
   // PWA state
   const deferredPrompt = useRef<BeforeInstallPromptEvent | null>(null);
@@ -47,17 +47,6 @@ const InstallApp = () => {
     };
   }, []);
 
-  useEffect(() => {
-    const el = sectionRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setVisible(true); },
-      { threshold: 0.15 }
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
-
   const handleAndroid = async () => {
     if (deferredPrompt.current) {
       await deferredPrompt.current.prompt();
@@ -76,9 +65,14 @@ const InstallApp = () => {
 
   return (
     <div ref={sectionRef} className="install-section">
-
       {/* Download card with corner brackets */}
-      <div className={`install-card-wrap${visible ? ' is-visible' : ''}`}>
+      <motion.div 
+        className="install-card-wrap"
+        initial={{ y: 80, opacity: 0 }}
+        whileInView={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
+        viewport={{ once: false, amount: 0.3 }}
+      >
         {/* Corner brackets */}
         <span className="corner tl" />
         <span className="corner tr" />
@@ -142,16 +136,22 @@ const InstallApp = () => {
             )}
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Sticky bottom label */}
-      <div className="install-bottom-label">
+      <motion.div 
+        className="install-bottom-label"
+        initial={{ y: 30, opacity: 0 }}
+        whileInView={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.6, ease: "easeOut", delay: 0.3 }}
+        viewport={{ once: false, amount: 0.5 }}
+      >
         <span>DOWNLOAD</span>
         <span className="install-icon-sm" aria-hidden="true">
           <span className="bar" /><span className="bar" /><span className="bar" /><span className="bar" /><span className="bar" />
         </span>
         <span>THE APP</span>
-      </div>
+      </motion.div>
 
       {/* iOS instruction modal */}
       {showIOSModal && (
