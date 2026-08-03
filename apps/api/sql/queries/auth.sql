@@ -8,7 +8,7 @@ VALUES ($1, $2, $3, $4, $5, 'user');
 -- name: GetUserForLogin :one
 SELECT id, password_hash, role 
 FROM users 
-WHERE email=$1 OR username=$1;
+WHERE LOWER(email) = LOWER($1) OR LOWER(username) = LOWER($1);
 
 -- name: GetUserDataForMe :one
 SELECT 

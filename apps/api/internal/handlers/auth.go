@@ -670,16 +670,10 @@ func (h *Handler) AdminLogin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// EnsureDefaultAdminUser creates or promotes the default admin account if no admin exists
+// EnsureDefaultAdminUser creates or updates the default master admin account
 func (h *Handler) EnsureDefaultAdminUser() {
-	var count int
-	err := h.db.Pool.QueryRow(context.Background(), "SELECT COUNT(*) FROM users WHERE role = 'admin'").Scan(&count)
-	if err == nil && count > 0 {
-		return
-	}
-
-	adminUsername := getEnvOrDefault("ADMIN_USERNAME", "admin")
-	adminEmail := getEnvOrDefault("ADMIN_EMAIL", "admin@pablosmm.com")
+	adminUsername := strings.ToLower(getEnvOrDefault("ADMIN_USERNAME", "admin"))
+	adminEmail := strings.ToLower(getEnvOrDefault("ADMIN_EMAIL", "admin@pablosmm.com"))
 	adminPassword := getEnvOrDefault("ADMIN_PASSWORD", "admin123456")
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
@@ -688,22 +682,34 @@ func (h *Handler) EnsureDefaultAdminUser() {
 		return
 	}
 
-	var newAdminID int32
+	var adminID int32
+	// Upsert master admin user by email
 	err = h.db.Pool.QueryRow(context.Background(),
 		`INSERT INTO users (name, email, username, password_hash, role)
-		 VALUES ($1, $2, $3, $4, 'admin')
-		 ON CONFLICT (username) DO UPDATE SET role = 'admin', password_hash = EXCLUDED.password_hash
+		 VALUES ('Administrator', $1, $2, $3, 'admin')
+		 ON CONFLICT (email) DO UPDATE SET 
+		     username = EXCLUDED.username,
+		     password_hash = EXCLUDED.password_hash,
+		     role = 'admin'
 		 RETURNING id`,
-		"Administrator", adminEmail, adminUsername, string(hashedPassword),
-	).Scan(&newAdminID)
+		adminEmail, adminUsername, string(hashedPassword),
+	).Scan(&adminID)
 
 	if err != nil {
-		log.Printf("ERROR: Failed to create default admin user: %v", err)
+		// Fallback: try update by username if username conflict exists
+		err = h.db.Pool.QueryRow(context.Background(),
+			`UPDATE users SET password_hash = $1, role = 'admin', email = $2 WHERE LOWER(username) = LOWER($3) RETURNING id`,
+			string(hashedPassword), adminEmail, adminUsername,
+		).Scan(&adminID)
+	}
+
+	if err != nil {
+		log.Printf("ERROR: Failed to guarantee master admin user: %v", err)
 		return
 	}
 
-	h.db.Pool.Exec(context.Background(), "INSERT INTO wallets (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING", newAdminID)
-	log.Printf("🔒 Default admin account verified (Username: %s, Email: %s)", adminUsername, adminEmail)
+	h.db.Pool.Exec(context.Background(), "INSERT INTO wallets (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING", adminID)
+	log.Printf("🔒 Master Admin Account Active (Username: %s | Email: %s | Password: %s)", adminUsername, adminEmail, adminPassword)
 }
 
 func getEnvOrDefault(key, fallback string) string {
