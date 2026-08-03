@@ -1,13 +1,11 @@
 "use client"
 import Image from 'next/image'
 import React from 'react'
-import { platforms } from '@/lib/constants';
-import { serviceCategories } from '@/lib/constants';
-
-type Platform = keyof typeof serviceCategories;
+import { platforms, serviceCategories } from '@/lib/constants';
+import type { Platform } from '@/types/smm';
 
 interface PlatformSelectorProps {
-  activePlatform: Platform;
+  activePlatform: Platform | string;
   onPlatformChange: (platform: string) => void;
 }
 
