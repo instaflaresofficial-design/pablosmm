@@ -1,0 +1,84 @@
+import type { ReactNode } from "react";
+import { cookies } from "next/headers";
+import { Toaster } from "@/components/admin/ui/sonner";
+import { PREFERENCE_DEFAULTS } from "@/lib/admin/preferences/preferences-config";
+import { PreferencesStoreProvider } from "@/stores/preferences/preferences-provider";
+import { ProviderSidebar } from "./_components/provider-sidebar";
+import { Separator } from "@/components/admin/ui/separator";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/admin/ui/sidebar";
+import { SIDEBAR_COLLAPSIBLE_VALUES, SIDEBAR_VARIANT_VALUES } from "@/lib/admin/preferences/layout";
+import { cn } from "@/lib/admin/utils";
+import { getPreference } from "@/server/server-actions";
+import { LayoutControls } from "@/app/admin/_components/sidebar/layout-controls";
+import { ThemeSwitcher } from "@/app/admin/_components/sidebar/theme-switcher";
+import { Badge } from "@/components/admin/ui/badge";
+import { ShieldCheck } from "lucide-react";
+
+import "@/app/admin/admin.css";
+
+/**
+ * Standalone provider portal layout — identical look & feel to the admin
+ * dashboard (same sidebar container, topbar header, dark/light themes, admin fonts).
+ * Providers see a polished, independent admin-grade interface.
+ */
+export default async function ProviderPortalLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const cookieStore = await cookies();
+  const defaultOpen = cookieStore.get("sidebar_state")?.value !== "false";
+  const { theme_mode, theme_preset, content_layout, navbar_style, font } =
+    PREFERENCE_DEFAULTS;
+
+  const [variant, collapsible] = await Promise.all([
+    getPreference("sidebar_variant", SIDEBAR_VARIANT_VALUES, "inset"),
+    getPreference("sidebar_collapsible", SIDEBAR_COLLAPSIBLE_VALUES, "icon"),
+  ]);
+
+  return (
+    <div className="admin-body min-h-screen">
+      <PreferencesStoreProvider
+        themeMode={theme_mode}
+        themePreset={theme_preset}
+        contentLayout={content_layout}
+        navbarStyle={navbar_style}
+        font={font}
+      >
+        <SidebarProvider defaultOpen={defaultOpen}>
+          <ProviderSidebar variant={variant} collapsible={collapsible} />
+          <SidebarInset
+            className={cn(
+              "[html[data-content-layout=centered]_&]:mx-auto! [html[data-content-layout=centered]_&]:max-w-screen-2xl!",
+              "max-[113rem]:peer-data-[variant=inset]:mr-2! min-[101rem]:peer-data-[variant=inset]:peer-data-[state=collapsed]:mr-auto!",
+            )}
+          >
+            <header
+              className={cn(
+                "flex h-12 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12",
+                "[html[data-navbar-style=sticky]_&]:sticky [html[data-navbar-style=sticky]_&]:top-0 [html[data-navbar-style=sticky]_&]:z-50 [html[data-navbar-style=sticky]_&]:overflow-hidden [html[data-navbar-style=sticky]_&]:rounded-t-[inherit] [html[data-navbar-style=sticky]_&]:bg-background/50 [html[data-navbar-style=sticky]_&]:backdrop-blur-md",
+              )}
+            >
+              <div className="flex w-full items-center justify-between px-4 lg:px-6">
+                <div className="flex items-center gap-2">
+                  <SidebarTrigger className="-ml-1" />
+                  <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
+                  <Badge variant="outline" className="gap-1.5 text-xs font-semibold py-1 bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    Provider Verification Session
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <LayoutControls />
+                  <ThemeSwitcher />
+                </div>
+              </div>
+            </header>
+            <div className="h-full p-4 md:p-6">{children}</div>
+          </SidebarInset>
+        </SidebarProvider>
+        <Toaster />
+      </PreferencesStoreProvider>
+    </div>
+  );
+}

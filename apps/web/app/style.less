@@ -1425,11 +1425,24 @@ h6 {
       }
     }
 
+    &.mockup-service-info {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      &::-webkit-scrollbar {
+        display: none;
+      }
+
+      .service-info-container {
+        padding: 24px 16px 16px;
+      }
+    }
+
     .service-info-container {
       display: flex;
       flex-direction: column;
       gap: 16px;
       padding: 16px;
+      padding-top: 72px;
       background: linear-gradient(180deg, #040405 0%, #1f1f20 100%);
 
       /* Category filter pills when rendered inside ServiceInfo */
@@ -6867,18 +6880,77 @@ button:focus {
 /* NEW SUMMARY PAGE STYLES */
 
 .sticky-slider-wrapper {
-  position: sticky;
-  top: 0;
   z-index: 50;
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  transition:
+    opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &.top-slider {
+    position: sticky;
+    top: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
+    &.hidden {
+      opacity: 0;
+      transform: translateY(-100%);
+      pointer-events: none;
+    }
+    &.visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+  }
+
+  &.bottom-slider {
+    position: sticky;
+    bottom: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+
+    .slider-container {
+      background-position: 0% 0%;
+      padding: 16px;
+    }
+
+    &.hidden {
+      opacity: 0;
+      transform: translateY(100%);
+      pointer-events: none;
+    }
+    &.visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+  }
 }
 
 .service-list-container {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  position: relative;
+
+  .service-details-inline {
+    position: relative;
+    z-index: 1;
+
+    &::after {
+      content: "";
+      opacity: 1;
+      z-index: 2;
+      background: url(/orders/glow.svg) center / 100% 100% no-repeat;
+      width: 100%;
+      height: 68px;
+      position: absolute;
+      top: 0;
+      left: 0;
+      -webkit-mask-image: linear-gradient(#000 20%, #0000 100%);
+      mask-image: linear-gradient(#000 20%, #0000 100%);
+    }
+  }
 
   .category-tabs {
     display: flex;
@@ -7954,7 +8026,7 @@ button:focus {
 .install-section {
   position: relative;
   width: 100%;
-  min-height: 75lvh;
+  min-height: 80lvh;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -8263,7 +8335,7 @@ button:focus {
   background: #000;
   padding-top: 64px;
   min-height: 100vh;
-  justify-content: space-between;
+  justify-content: center;
 
   .stars-canvas {
     position: absolute;
@@ -8387,7 +8459,7 @@ button:focus {
     position: relative;
     width: 100%;
     overflow: hidden;
-    padding: 40px 0 24px;
+    padding: 20px 0;
     margin-bottom: 20px;
     display: flex;
     justify-content: center;
@@ -8460,7 +8532,16 @@ button:focus {
     bottom: 0;
     left: 0;
     right: 0;
-    background: linear-gradient(to right, #000 0%, #000000eb 12%, #0009 24%, #0000001a 52% 58%, #0009 76%, #000000eb 86%, #000 100%);
+    background: linear-gradient(
+      to right,
+      #000 0%,
+      #000000eb 12%,
+      #0009 24%,
+      #0000001a 52% 58%,
+      #0009 76%,
+      #000000eb 86%,
+      #000 100%
+    );
     pointer-events: none;
     z-index: 10;
   }
@@ -8647,7 +8728,19 @@ button:focus {
     opacity: 0.9;
     transform: scale(1.3);
     transform-origin: center bottom;
-    mask-image: linear-gradient(to bottom, transparent 0%, black 15%);
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%);
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 15%,
+      black 75%,
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 15%,
+      black 75%,
+      transparent 100%
+    );
   }
 }

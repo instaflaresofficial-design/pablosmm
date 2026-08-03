@@ -5,7 +5,7 @@ import ServiceInfoPanel from '@/components/order/ServiceInfo'
 import Preview from '@/components/preview/Preview'
 import { useNormalizedServices } from '@/lib/useServices'
 import { useSearchParams } from 'next/navigation'
-import React, { Suspense, useMemo, useState, startTransition } from 'react'
+import React, { Suspense, useMemo, useState, startTransition, useRef } from 'react'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { toast } from 'sonner'
 import type { Platform, ServiceType, Variant, NormalizedSmmService } from '@/types/smm'
@@ -70,6 +70,7 @@ const SummaryContent = () => {
   const [budgetUsd, setBudgetUsd] = useState<number>(0);
   const [selIndex, setSelIndex] = useState<number>(0);
   const [comments, setComments] = useState<string[]>([]);
+  const [customInput, setCustomInput] = useState<string>('');
   
   // Modal state for Service Details
   const [selectedService, setSelectedService] = useState<NormalizedSmmService | null>(null);
@@ -95,7 +96,19 @@ const SummaryContent = () => {
         return hay.includes(bySearch);
       });
     } else {
-      list = all.filter((s) => s.platform === platform && s.type === service && (variant === 'any' || s.variant === variant));
+      list = all.filter((s) => {
+        if (s.platform !== platform || s.type !== service) return false;
+        if (variant === 'any') return true;
+        if (variant === 'custom') {
+          const name = (s.displayName || s.providerName || '').toLowerCase();
+          return s.variant === 'custom' || name.includes('custom') || (s.category || '').toLowerCase().includes('custom');
+        }
+        if (variant === 'random') {
+          const name = (s.displayName || s.providerName || '').toLowerCase();
+          return s.variant === 'random' || s.variant === 'any' || (!name.includes('custom') && !(s.category || '').toLowerCase().includes('custom'));
+        }
+        return s.variant === variant;
+      });
     }
 
     // Apply Drawer Filters
@@ -133,8 +146,6 @@ const SummaryContent = () => {
   const [ordering, setOrdering] = useState(false);
   const [orderStatus, setOrderStatus] = useState<string | null>(null);
 
-  // useEffect removed to avoid double toasts
-
   const showComments = useMemo(() => {
     if (!selected) return false;
     const name = (selected.displayName || selected.providerName || '').toLowerCase();
@@ -154,6 +165,11 @@ const SummaryContent = () => {
         toast.error(`Please add ${quantity - comments.length} more comments or use Smart Fill`);
         return;
       }
+    }
+
+    if (selected.customInputRequired && !customInput.trim()) {
+      toast.error(`Please enter ${selected.customInputLabel || 'required input / answer'}`);
+      return;
     }
 
     setConfirmOpen(true);
@@ -192,6 +208,11 @@ const SummaryContent = () => {
 
       if (showComments && comments.length > 0) {
         payload.comments = comments.join('\n');
+      }
+
+      if (selected.customInputRequired || customInput.trim()) {
+        payload.customInput = customInput.trim();
+        payload.answer = customInput.trim();
       }
 
       const res = await fetch(`${getApiBaseUrl()}/orders`, {
@@ -365,8 +386,34 @@ const SummaryContent = () => {
     );
   };
 
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const [sliderAtBottom, setSliderAtBottom] = useState(false);
+
+  React.useEffect(() => {
+    const el = triggerRef.current;
+    if (!el) return;
+    
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting && entry.boundingClientRect.top < 50) {
+          setSliderAtBottom(true);
+        } else if (entry.isIntersecting) {
+          setSliderAtBottom(false);
+        }
+      },
+      {
+        threshold: 0,
+        rootMargin: "0px"
+      }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className='summary-container'>
+
+
 
       {service === 'followers' ? (
         <FollowerPreview
@@ -402,8 +449,11 @@ const SummaryContent = () => {
         <PostPreview metric={service} metricCount={quantity} username={link || 'example_post'} imageUrl={metadata?.image} isLoading={metaLoading} />
       )}
       
-      <div className="sticky-slider-wrapper">
+      {/* TOP SLIDER */}
+      <div className={`sticky-slider-wrapper top-slider ${sliderAtBottom ? 'hidden' : 'visible'}`}>
         <QuantitySlider
+          value={quantity}
+          mode={sliderMode}
           min={min}
           max={max}
           pricePerUnit={pricePerUnit}
@@ -421,9 +471,13 @@ const SummaryContent = () => {
         />
       </div>
 
+
       <div className="service-list-container">
+        <div ref={triggerRef} style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 1, pointerEvents: 'none' }} />
         <div style={{ display: selectedService ? 'none' : 'block' }}>
-          <SearchContainer value={search} onChange={setSearch} onFilterClick={() => setActiveDrawer('all')} />
+          <div className="search-wrapper">
+            <SearchContainer value={search} onChange={setSearch} onFilterClick={() => setActiveDrawer('all')} />
+          </div>
           
           <div className="category-tabs">
             <button className={`tab-btn ${category === 'recommended' ? 'active' : ''}`} onClick={() => setCategory('recommended')}>Best Rated</button>
@@ -467,6 +521,31 @@ const SummaryContent = () => {
             />
           </div>
         )}
+      </div>
+
+      <div className={`sticky-slider-wrapper bottom-slider ${sliderAtBottom ? 'visible' : 'hidden'}`}>
+        <QuantitySlider
+          value={quantity}
+          mode={sliderMode}
+          min={min}
+          max={max}
+          pricePerUnit={pricePerUnit}
+          onChange={(val) => startTransition(() => setQuantity(val))}
+          activeCategory={category}
+          onCategoryChange={setCategory}
+          onModeChange={setSliderMode}
+          onBudgetChange={setBudgetUsd}
+          showComments={showComments}
+          comments={comments}
+          setComments={setComments}
+          customInputRequired={selected?.customInputRequired}
+          customInputLabel={selected?.customInputLabel}
+          customInput={customInput}
+          setCustomInput={setCustomInput}
+          onOrder={handleOrder}
+          ordering={ordering}
+          orderStatus={orderStatus}
+        />
       </div>
 
       <ConfirmModal

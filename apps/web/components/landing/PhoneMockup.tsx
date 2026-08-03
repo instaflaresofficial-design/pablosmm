@@ -256,7 +256,7 @@ export default function PhoneMockup({
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               style={{ position: 'absolute', inset: 0, zIndex: 100, background: '#0a0a0a', overflowY: 'auto' }}
-              className="summary-container"
+              className="summary-container mockup-service-info"
             >
               <ServiceInfo services={mockServices} index={0} onClose={() => {}} />
             </motion.div>

@@ -21,7 +21,13 @@ interface QuantitySliderProps {
   comments?: string[];
   setComments?: (c: string[]) => void;
   showComments?: boolean;
+  // Custom Input props (e.g. Story poll vote answer)
+  customInputRequired?: boolean;
+  customInputLabel?: string;
+  customInput?: string;
+  setCustomInput?: (val: string) => void;
   value?: number;
+  mode?: 'qty' | 'amount';
 }
 
 import CommentInput from "./CommentInput";
@@ -41,7 +47,12 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
   comments = [],
   setComments,
   showComments = false,
-  value
+  customInputRequired = false,
+  customInputLabel = "",
+  customInput = "",
+  setCustomInput,
+  value,
+  mode: modeProp
 }) => {
   const { formatMoneyCompact, convert, currency, usdToInr, convertToUsd } = useCurrency();
   const [internalQuantity, setInternalQuantity] = useState<number>(1000);
@@ -56,7 +67,8 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
   const [fillPercentage, setFillPercentage] = useState<number>(0);
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editingValue, setEditingValue] = useState<string>("");
-  const [mode, setMode] = useState<'qty' | 'amount'>("qty");
+  const [internalMode, setInternalMode] = useState<'qty' | 'amount'>("qty");
+  const mode = modeProp !== undefined ? modeProp : internalMode;
   const [budgetEditing, setBudgetEditing] = useState<boolean>(false);
   const [budgetValue, setBudgetValue] = useState<string>("");
 
@@ -166,10 +178,6 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
   useEffect(() => {
     onChange?.(quantity);
   }, [quantity]);
-
-  useEffect(() => {
-    onModeChange?.(mode);
-  }, [mode]);
 
   const totalPriceNumberUsd = quantity * pricePerUnit; // pricePerUnit provided in USD per unit
   
@@ -293,7 +301,9 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
           <button
             className="switch-btn"
             onClick={() => {
-              setMode(mode === 'qty' ? 'amount' : 'qty');
+              const newMode = mode === 'qty' ? 'amount' : 'qty';
+              if (modeProp === undefined) setInternalMode(newMode);
+              if (onModeChange) onModeChange(newMode);
               if (isMobile) lightImpact();
             }}
             aria-label="Toggle input mode"
@@ -328,6 +338,30 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
           comments={comments}
           setComments={setComments}
         />
+      )}
+
+      {customInputRequired && setCustomInput && (
+        <div className="custom-input-container" style={{ marginTop: '12px', marginBottom: '16px' }}>
+          <label style={{ display: 'block', color: '#94a3b8', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+            {customInputLabel || "Required Input / Answer"} <span style={{ color: '#ef4444' }}>*</span>
+          </label>
+          <input
+            type="text"
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              borderRadius: '12px',
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              color: '#ffffff',
+              fontSize: '14px',
+              outline: 'none',
+            }}
+            placeholder={`Enter ${customInputLabel || 'answer / choice'}...`}
+            value={customInput || ''}
+            onChange={(e) => setCustomInput(e.target.value)}
+          />
+        </div>
       )}
 
       {/* Order button injected here as requested */}

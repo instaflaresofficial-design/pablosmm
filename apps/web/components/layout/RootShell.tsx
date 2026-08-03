@@ -7,7 +7,7 @@ import CurrencyStrip from '@/components/layout/CurrencyStrip';
 
 export default function RootShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '/';
-  const isAdmin = pathname.startsWith('/admin');
+  const isAdmin = pathname.startsWith('/admin') || pathname.startsWith('/provider');
   const isLandingPage = pathname === '/';
   
   if (isAdmin || isLandingPage) {

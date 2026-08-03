@@ -30,6 +30,7 @@ const LiveOrders = () => {
   const canvasRef      = useRef<HTMLCanvasElement>(null);
   const earthRef       = useRef<HTMLDivElement>(null);
   const sectionRef     = useRef<HTMLDivElement>(null);
+  const videoRef       = useRef<HTMLVideoElement>(null);
 
   // ── Shooting stars animation ─────────────────────────────────────────
   useEffect(() => {
@@ -46,12 +47,12 @@ const LiveOrders = () => {
 
     // ── Tiny background star field (seeded once) ──────────────────────
     type BGStar = { x: number; y: number; size: number; opacity: number; vy: number };
-    const bgStars: BGStar[] = Array.from({ length: 280 }, () => ({
+    const bgStars: BGStar[] = Array.from({ length: 450 }, () => ({
       x:       Math.random() * canvas.width,
       y:       Math.random() * canvas.height,
-      size:    Math.random() * 0.4 + 0.2,    // 0.2–0.6 px — smaller
-      opacity: Math.random() * 0.28 + 0.12,  // 0.12–0.40 — subtle
-      vy:      -(Math.random() * 0.15 + 0.05), // slow upward drift
+      size:    Math.random() * 0.5 + 0.3,    // 0.3–0.8 px
+      opacity: Math.random() * 0.30 + 0.20,  // 0.20–0.50 — more visible
+      vy:      -(Math.random() * 0.15 + 0.05),
     }));
 
     // ── Shooting meteors ──────────────────────────────────────────────
@@ -182,6 +183,18 @@ const LiveOrders = () => {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  // ── Video playback rate (slow Earth rotation) ────────────────────────
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const applyRate = () => { video.playbackRate = 0.5; };
+    applyRate();
+    // Re-apply on every play event — some browsers reset rate on loop
+    video.addEventListener('play', applyRate);
+    return () => video.removeEventListener('play', applyRate);
+  }, []);
+
   // ── Card center highlight ────────────────────────────────────────────
   useEffect(() => {
     let animationFrameId: number;
@@ -278,12 +291,14 @@ const LiveOrders = () => {
 
       <div className="earth-video-wrapper" ref={earthRef}>
         <video 
+          ref={videoRef}
           autoPlay 
           loop 
           muted 
           playsInline 
           className="earth-video"
           suppressHydrationWarning
+          onCanPlay={() => { if (videoRef.current) videoRef.current.playbackRate = 0.5; }}
         >
           <source src="/landing/earth.mp4" type="video/mp4" />
         </video>

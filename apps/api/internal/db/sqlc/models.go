@@ -59,27 +59,41 @@ type OrderRequest struct {
 }
 
 type ServiceOverride struct {
-	ID                 int32              `json:"id"`
-	SourceServiceID    string             `json:"source_service_id"`
-	DisplayName        pgtype.Text        `json:"display_name"`
-	DisplayDescription pgtype.Text        `json:"display_description"`
-	RateMultiplier     pgtype.Float8      `json:"rate_multiplier"`
-	IsHidden           pgtype.Bool        `json:"is_hidden"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
-	Category           pgtype.Text        `json:"category"`
-	Tags               []string           `json:"tags"`
-	ProviderCategory   pgtype.Text        `json:"provider_category"`
-	PurchaseCount      pgtype.Int4        `json:"purchase_count"`
-	DisplayID          pgtype.Text        `json:"display_id"`
-	Refill             pgtype.Bool        `json:"refill"`
-	Cancel             pgtype.Bool        `json:"cancel"`
-	Dripfeed           pgtype.Bool        `json:"dripfeed"`
-	ServiceType        pgtype.Text        `json:"service_type"`
-	Targeting          pgtype.Text        `json:"targeting"`
-	Quality            pgtype.Text        `json:"quality"`
-	Stability          pgtype.Text        `json:"stability"`
-	RefillLimit        pgtype.Int4        `json:"refill_limit"`
+	ID                  int32              `json:"id"`
+	SourceServiceID     string             `json:"source_service_id"`
+	DisplayName         pgtype.Text        `json:"display_name"`
+	DisplayDescription  pgtype.Text        `json:"display_description"`
+	RateMultiplier      pgtype.Float8      `json:"rate_multiplier"`
+	IsHidden            pgtype.Bool        `json:"is_hidden"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	Category            pgtype.Text        `json:"category"`
+	Tags                []string           `json:"tags"`
+	ProviderCategory    pgtype.Text        `json:"provider_category"`
+	PurchaseCount       pgtype.Int4        `json:"purchase_count"`
+	DisplayID           pgtype.Text        `json:"display_id"`
+	Refill              pgtype.Bool        `json:"refill"`
+	Cancel              pgtype.Bool        `json:"cancel"`
+	Dripfeed            pgtype.Bool        `json:"dripfeed"`
+	ServiceType         pgtype.Text        `json:"service_type"`
+	Targeting           pgtype.Text        `json:"targeting"`
+	Quality             pgtype.Text        `json:"quality"`
+	Stability           pgtype.Text        `json:"stability"`
+	RefillLimit         pgtype.Int4        `json:"refill_limit"`
+	CustomInputRequired pgtype.Bool        `json:"custom_input_required"`
+	CustomInputLabel    pgtype.Text        `json:"custom_input_label"`
+}
+
+type SmmProvider struct {
+	ID        int32              `json:"id"`
+	Key       string             `json:"key"`
+	Name      string             `json:"name"`
+	ApiUrl    string             `json:"api_url"`
+	ApiKey    string             `json:"api_key"`
+	Currency  string             `json:"currency"`
+	IsActive  bool               `json:"is_active"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Session struct {

@@ -59,6 +59,8 @@ const formSchema = z.object({
     quality: z.string().optional(),
     stability: z.string().optional(),
     refillLimit: z.coerce.number().min(0).default(3),
+    customInputRequired: z.boolean().default(false),
+    customInputLabel: z.string().optional(),
 });
 
 interface RewriteDialogProps {
@@ -92,6 +94,8 @@ export function RewriteDialog({ open, onOpenChange, service, onSuccess }: Rewrit
             quality: "",
             stability: "",
             refillLimit: 3,
+            customInputRequired: false,
+            customInputLabel: "",
         },
     });
 
@@ -111,7 +115,7 @@ export function RewriteDialog({ open, onOpenChange, service, onSuccess }: Rewrit
                 displayName: service.displayName || "",
                 displayDescription: service.displayDescription || "",
                 rateMultiplier: multiplier,
-                isHidden: service.status === "hidden",
+                isHidden: service.status === "hidden" || service.isHidden === true,
                 category: (service.category || "").toLowerCase(),
                 tags: service.tags || [],
                 providerCategory: service.providerCategory || "",
@@ -124,6 +128,8 @@ export function RewriteDialog({ open, onOpenChange, service, onSuccess }: Rewrit
                 quality: service.quality || "",
                 stability: service.stability || "",
                 refillLimit: service.refillLimit ?? 3,
+                customInputRequired: service.customInputRequired ?? false,
+                customInputLabel: service.customInputLabel || "",
             });
 
             // Set initial local price
@@ -687,6 +693,47 @@ export function RewriteDialog({ open, onOpenChange, service, onSuccess }: Rewrit
                                                 <FormLabel className="text-[11px] font-medium">Stability</FormLabel>
                                                 <FormControl>
                                                     <Input placeholder="Non-Drop, Stable..." className="h-8 text-xs font-medium" {...field} />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-4 pt-4 border-t mt-4">
+                                <h4 className="text-xs font-bold uppercase text-muted-foreground">Custom Input / Poll Answer Settings</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                                    <FormField
+                                        control={form.control}
+                                        name="customInputRequired"
+                                        render={({ field }) => (
+                                            <FormItem className="flex items-center gap-3 space-y-0 rounded-lg border px-4 py-2 bg-muted/10 h-10 w-full cursor-pointer hover:bg-muted/20 transition-colors">
+                                                <FormControl>
+                                                    <Switch
+                                                        checked={field.value}
+                                                        onCheckedChange={field.onChange}
+                                                        className="scale-90"
+                                                    />
+                                                </FormControl>
+                                                <FormLabel className="text-xs font-semibold cursor-pointer">
+                                                    Require Custom Input Field
+                                                </FormLabel>
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
+                                        name="customInputLabel"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-[11px] font-medium">Custom Input Label</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        placeholder="e.g. Poll Option Number / Choice"
+                                                        className="h-8 text-xs font-medium"
+                                                        {...field}
+                                                    />
                                                 </FormControl>
                                             </FormItem>
                                         )}

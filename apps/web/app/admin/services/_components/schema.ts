@@ -31,6 +31,9 @@ export const serviceSchema = z.object({
     stability: z.string().optional(),
     refillLimit: z.number().default(3),
     status: z.enum(["active", "hidden", "disabled"]).default("active"),
+    isHidden: z.boolean().optional(),
+    customInputRequired: z.boolean().optional(),
+    customInputLabel: z.string().optional(),
 });
 
 export type Service = z.infer<typeof serviceSchema>;

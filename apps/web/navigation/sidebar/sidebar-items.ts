@@ -3,6 +3,7 @@ import {
   Fingerprint,
   LayoutDashboard,
   type LucideIcon,
+  Server,
   Settings,
   ShoppingBag,
   Users,
@@ -47,6 +48,25 @@ export const sidebarItems: NavGroup[] = [
         title: "Services",
         url: "/admin/services",
         icon: ShoppingBag,
+      },
+      {
+        title: "Providers",
+        url: "/admin/providers",
+        icon: Server,
+        subItems: [
+          {
+            title: "Providers Credentials",
+            url: "/admin/providers",
+          },
+          {
+            title: "Service Mapping Audit",
+            url: "/admin/providers/mapping",
+          },
+          {
+            title: "Provider Service Verification",
+            url: "/admin/providers/verify",
+          },
+        ],
       },
       {
         title: "Users",

@@ -47,13 +47,20 @@ func (h *Handler) GetServices(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	log.Printf("DEBUG: GetServices returned %d services", len(services))
+
+	activeServices := make([]smm.NormalizedSmmService, 0)
+	for _, s := range services {
+		if !s.IsHidden {
+			activeServices = append(activeServices, s)
+		}
+	}
+	log.Printf("DEBUG: GetServices returned %d active services out of %d total", len(activeServices), len(services))
 
 	fxRate := h.fx.GetUsdToInr()
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"services": services,
-		"fxRate": fxRate,
+		"services": activeServices,
+		"fxRate":   fxRate,
 	})
 }
 
@@ -564,18 +571,20 @@ func (h *Handler) UpdateServiceOverride(w http.ResponseWriter, r *http.Request) 
 		RateMultiplier     float64 `json:"rateMultiplier"`
 		IsHidden           bool    `json:"isHidden"`
 
-		Category         *string  `json:"category"`
-		Tags             []string `json:"tags"`
-		ProviderCategory *string  `json:"providerCategory"`
-		DisplayID        string   `json:"displayId"`
-		Refill           *bool    `json:"refill"`
-		Cancel           *bool    `json:"cancel"`
-		Dripfeed         *bool    `json:"dripfeed"`
-		Type             *string  `json:"type"`
-		Targeting        *string  `json:"targeting"`
-		Quality          *string  `json:"quality"`
-		Stability        *string  `json:"stability"`
-		RefillLimit      *int32   `json:"refillLimit"`
+		Category            *string  `json:"category"`
+		Tags                []string `json:"tags"`
+		ProviderCategory    *string  `json:"providerCategory"`
+		DisplayID           string   `json:"displayId"`
+		Refill              *bool    `json:"refill"`
+		Cancel              *bool    `json:"cancel"`
+		Dripfeed            *bool    `json:"dripfeed"`
+		Type                *string  `json:"type"`
+		Targeting           *string  `json:"targeting"`
+		Quality             *string  `json:"quality"`
+		Stability           *string  `json:"stability"`
+		RefillLimit         *int32   `json:"refillLimit"`
+		CustomInputRequired *bool    `json:"customInputRequired"`
+		CustomInputLabel    *string  `json:"customInputLabel"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -600,23 +609,25 @@ func (h *Handler) UpdateServiceOverride(w http.ResponseWriter, r *http.Request) 
 	}
 
 	err := h.db.Queries.UpsertServiceOverride(context.Background(), sqlc.UpsertServiceOverrideParams{
-		SourceServiceID:    body.SourceServiceID,
-		DisplayName:        func() pgtype.Text { if body.DisplayName != nil { return pgtype.Text{String: *body.DisplayName, Valid: true} } else { return pgtype.Text{} } }(),
-		DisplayDescription: func() pgtype.Text { if body.DisplayDescription != nil { return pgtype.Text{String: *body.DisplayDescription, Valid: true} } else { return pgtype.Text{} } }(),
-		RateMultiplier:     pgtype.Float8{Float64: body.RateMultiplier, Valid: true},
-		IsHidden:           pgtype.Bool{Bool: body.IsHidden, Valid: true},
-		Category:           func() pgtype.Text { if body.Category != nil { return pgtype.Text{String: *body.Category, Valid: true} } else { return pgtype.Text{} } }(),
-		Tags:               body.Tags,
-		ProviderCategory:   func() pgtype.Text { if body.ProviderCategory != nil { return pgtype.Text{String: *body.ProviderCategory, Valid: true} } else { return pgtype.Text{} } }(),
-		DisplayID:          pgtype.Text{String: body.DisplayID, Valid: true},
-		Refill:             func() pgtype.Bool { if body.Refill != nil { return pgtype.Bool{Bool: *body.Refill, Valid: true} } else { return pgtype.Bool{} } }(),
-		Cancel:             func() pgtype.Bool { if body.Cancel != nil { return pgtype.Bool{Bool: *body.Cancel, Valid: true} } else { return pgtype.Bool{} } }(),
-		Dripfeed:           func() pgtype.Bool { if body.Dripfeed != nil { return pgtype.Bool{Bool: *body.Dripfeed, Valid: true} } else { return pgtype.Bool{} } }(),
-		ServiceType:        func() pgtype.Text { if body.Type != nil { return pgtype.Text{String: *body.Type, Valid: true} } else { return pgtype.Text{} } }(),
-		Targeting:          func() pgtype.Text { if body.Targeting != nil { return pgtype.Text{String: *body.Targeting, Valid: true} } else { return pgtype.Text{} } }(),
-		Quality:            func() pgtype.Text { if body.Quality != nil { return pgtype.Text{String: *body.Quality, Valid: true} } else { return pgtype.Text{} } }(),
-		Stability:          func() pgtype.Text { if body.Stability != nil { return pgtype.Text{String: *body.Stability, Valid: true} } else { return pgtype.Text{} } }(),
-		RefillLimit:        func() pgtype.Int4 { if body.RefillLimit != nil { return pgtype.Int4{Int32: *body.RefillLimit, Valid: true} } else { return pgtype.Int4{Int32: 3, Valid: true} } }(),
+		SourceServiceID:     body.SourceServiceID,
+		DisplayName:         func() pgtype.Text { if body.DisplayName != nil { return pgtype.Text{String: *body.DisplayName, Valid: true} } else { return pgtype.Text{} } }(),
+		DisplayDescription:  func() pgtype.Text { if body.DisplayDescription != nil { return pgtype.Text{String: *body.DisplayDescription, Valid: true} } else { return pgtype.Text{} } }(),
+		RateMultiplier:      pgtype.Float8{Float64: body.RateMultiplier, Valid: true},
+		IsHidden:            pgtype.Bool{Bool: body.IsHidden, Valid: true},
+		Category:            func() pgtype.Text { if body.Category != nil { return pgtype.Text{String: *body.Category, Valid: true} } else { return pgtype.Text{} } }(),
+		Tags:                body.Tags,
+		ProviderCategory:    func() pgtype.Text { if body.ProviderCategory != nil { return pgtype.Text{String: *body.ProviderCategory, Valid: true} } else { return pgtype.Text{} } }(),
+		DisplayID:           pgtype.Text{String: body.DisplayID, Valid: true},
+		Refill:              func() pgtype.Bool { if body.Refill != nil { return pgtype.Bool{Bool: *body.Refill, Valid: true} } else { return pgtype.Bool{} } }(),
+		Cancel:              func() pgtype.Bool { if body.Cancel != nil { return pgtype.Bool{Bool: *body.Cancel, Valid: true} } else { return pgtype.Bool{} } }(),
+		Dripfeed:            func() pgtype.Bool { if body.Dripfeed != nil { return pgtype.Bool{Bool: *body.Dripfeed, Valid: true} } else { return pgtype.Bool{} } }(),
+		ServiceType:         func() pgtype.Text { if body.Type != nil { return pgtype.Text{String: *body.Type, Valid: true} } else { return pgtype.Text{} } }(),
+		Targeting:           func() pgtype.Text { if body.Targeting != nil { return pgtype.Text{String: *body.Targeting, Valid: true} } else { return pgtype.Text{} } }(),
+		Quality:             func() pgtype.Text { if body.Quality != nil { return pgtype.Text{String: *body.Quality, Valid: true} } else { return pgtype.Text{} } }(),
+		Stability:           func() pgtype.Text { if body.Stability != nil { return pgtype.Text{String: *body.Stability, Valid: true} } else { return pgtype.Text{} } }(),
+		RefillLimit:         func() pgtype.Int4 { if body.RefillLimit != nil { return pgtype.Int4{Int32: *body.RefillLimit, Valid: true} } else { return pgtype.Int4{Int32: 3, Valid: true} } }(),
+		CustomInputRequired: func() pgtype.Bool { if body.CustomInputRequired != nil { return pgtype.Bool{Bool: *body.CustomInputRequired, Valid: true} } else { return pgtype.Bool{} } }(),
+		CustomInputLabel:    func() pgtype.Text { if body.CustomInputLabel != nil { return pgtype.Text{String: *body.CustomInputLabel, Valid: true} } else { return pgtype.Text{} } }(),
 	})
 
 	if err != nil {
@@ -634,23 +645,25 @@ func (h *Handler) UpdateServiceOverride(w http.ResponseWriter, r *http.Request) 
 
 func (h *Handler) BulkUpdateServiceOverrides(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		SourceServiceIDs   []string `json:"sourceServiceIds"`
-		DisplayName        *string  `json:"displayName"`
-		DisplayDescription *string  `json:"displayDescription"`
-		RateMultiplier     float64  `json:"rateMultiplier"`
-		IsHidden           *bool    `json:"isHidden"`
-		Category           *string  `json:"category"`
-		Tags               []string `json:"tags"`
-		ProviderCategory   *string  `json:"providerCategory"`
-		DisplayID          *string  `json:"displayId"`
-		Refill             *bool    `json:"refill"`
-		Cancel             *bool    `json:"cancel"`
-		Dripfeed           *bool    `json:"dripfeed"`
-		Type               *string  `json:"type"`
-		Targeting          *string  `json:"targeting"`
-		Quality            *string  `json:"quality"`
-		Stability          *string  `json:"stability"`
-		RefillLimit        *int32   `json:"refillLimit"`
+		SourceServiceIDs    interface{} `json:"sourceServiceIds"`
+		DisplayName         *string     `json:"displayName"`
+		DisplayDescription  *string     `json:"displayDescription"`
+		RateMultiplier      float64     `json:"rateMultiplier"`
+		IsHidden            *bool       `json:"isHidden"`
+		Category            *string     `json:"category"`
+		Tags                []string    `json:"tags"`
+		ProviderCategory    *string     `json:"providerCategory"`
+		DisplayID           *string     `json:"displayId"`
+		Refill              *bool       `json:"refill"`
+		Cancel              *bool       `json:"cancel"`
+		Dripfeed            *bool       `json:"dripfeed"`
+		Type                *string     `json:"type"`
+		Targeting           *string     `json:"targeting"`
+		Quality             *string     `json:"quality"`
+		Stability           *string     `json:"stability"`
+		RefillLimit         *int32      `json:"refillLimit"`
+		CustomInputRequired *bool       `json:"customInputRequired"`
+		CustomInputLabel    *string     `json:"customInputLabel"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -658,7 +671,21 @@ func (h *Handler) BulkUpdateServiceOverrides(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if len(body.SourceServiceIDs) == 0 {
+	var serviceIDs []string
+	switch v := body.SourceServiceIDs.(type) {
+	case []interface{}:
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				serviceIDs = append(serviceIDs, s)
+			} else if f, ok := item.(float64); ok {
+				serviceIDs = append(serviceIDs, fmt.Sprintf("%.0f", f))
+			}
+		}
+	case []string:
+		serviceIDs = v
+	}
+
+	if len(serviceIDs) == 0 {
 		http.Error(w, "Source Service IDs are required", http.StatusBadRequest)
 		return
 	}
@@ -668,12 +695,11 @@ func (h *Handler) BulkUpdateServiceOverrides(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "Database error", http.StatusInternalServerError)
 		return
 	}
-	defer tx.Rollback(context.Background()) // Ensure rollback on error
+	defer tx.Rollback(context.Background())
 
 	qtx := h.db.Queries.WithTx(tx)
 
-	for _, id := range body.SourceServiceIDs {
-		// Calculate isHidden for each (since body.IsHidden is optional for bulk)
+	for _, id := range serviceIDs {
 		isHidden := false
 		if body.IsHidden != nil {
 			isHidden = *body.IsHidden
@@ -697,6 +723,8 @@ func (h *Handler) BulkUpdateServiceOverrides(w http.ResponseWriter, r *http.Requ
 			Column15:        body.Quality,
 			Column16:        body.Stability,
 			Column17:        func() pgtype.Int4 { if body.RefillLimit != nil { return pgtype.Int4{Int32: *body.RefillLimit, Valid: true} } else { return pgtype.Int4{Int32: 3, Valid: true} } }(),
+			Column18:        body.CustomInputRequired,
+			Column19:        body.CustomInputLabel,
 		})
 		if err != nil {
 			log.Printf("Bulk update failed for %s: %v", id, err)

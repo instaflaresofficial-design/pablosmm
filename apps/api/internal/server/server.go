@@ -102,10 +102,18 @@ func New(cfg *config.Config) *http.Server {
 		r.Get("/profile", h.GetProfile)
 		r.Get("/fx", h.GetFX)
 		r.Get("/metadata", h.GetMetadata)
+		r.Get("/admin/services", h.GetAdminServices)
 		r.Get("/admin/services/refresh", h.RefreshServices)
 		r.Post("/admin/services/override", h.UpdateServiceOverride)
 		r.Post("/admin/services/bulk-override", h.BulkUpdateServiceOverrides)
+		r.Post("/admin/services/curate", h.CurateServicesAdmin)
+		r.Post("/admin/services/clear-pending-provider-submissions", h.ClearPendingProviderSubmissions)
 		r.Post("/admin/services/ai-rewrite", h.AIRewriteService)
+
+		// Admin SMM Providers
+		r.Get("/admin/providers", h.ListProvidersAdmin)
+		r.Post("/admin/providers", h.UpsertProviderAdmin)
+		r.Delete("/admin/providers/{id}", h.DeleteProviderAdmin)
 
 		// Admin User Management
 		r.Get("/admin/users", h.GetUsers)

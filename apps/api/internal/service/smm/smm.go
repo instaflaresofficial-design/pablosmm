@@ -42,6 +42,7 @@ type NormalizedSmmService struct {
 	Platform            string      `json:"platform"`
 	ServiceType         string      `json:"type"`
 	Variant             string      `json:"variant"`
+	Name                string      `json:"name"`
 	ProviderName        string      `json:"providerName"`
 	Description         string      `json:"description"`
 	Category            string      `json:"category"`
@@ -67,6 +68,18 @@ type NormalizedSmmService struct {
 	Quality             string      `json:"quality"`
 	Stability           string      `json:"stability"`
 	RefillLimit         int         `json:"refillLimit"`
+	IsHidden                     bool        `json:"isHidden"`
+	Status                       string      `json:"status"`
+	CustomInputRequired          bool        `json:"customInputRequired"`
+	CustomInputLabel             string      `json:"customInputLabel"`
+	HasPendingProviderSubmission bool        `json:"hasPendingProviderSubmission"`
+	PendingProviderStatus        string      `json:"pendingProviderStatus"`
+	ProposedStatus               string      `json:"proposedStatus,omitempty"`
+	ProposedMin                  int         `json:"proposedMin,omitempty"`
+	ProposedMax                  int         `json:"proposedMax,omitempty"`
+	ProposedRefillTag            string      `json:"proposedRefillTag,omitempty"`
+	ProposedQuality              string      `json:"proposedQuality,omitempty"`
+	ProposedCancel               *bool       `json:"proposedCancel,omitempty"`
 }
 
 type ProviderService struct {
@@ -95,12 +108,14 @@ var (
 
 	typeRegex = map[string]*regexp.Regexp{
 		"comments":  regexp.MustCompile("(?i)\\bcomment(s)?\\b|\\brepl(y|ies)\\b|\\breview(s)?\\b"),
-		"likes":     regexp.MustCompile("(?i)\\blike(s)?\\b|\\bheart(s)?\\b|\\breaction(s)?\\b"),
+		"likes":     regexp.MustCompile("(?i)\\blike(s)?\\b|\\bheart(s)?\\b"),
 		"followers": regexp.MustCompile("(?i)\\bfollow(er)?(s)?\\b|\\bsubscriber(s)?\\b|\\bmember(s)?\\b"),
 		"views":     regexp.MustCompile("(?i)\\bview(s)?\\b|\\bplay(s)?\\b|\\bwatch(es)?\\b|\\bimpression(s)?\\b|\\breach\\b"),
-		"shares":    regexp.MustCompile("(?i)\\bshare(s)?\\b|\\brepost(s)?\\b|\\bretweet(s)?\\b|\\bforward(s)?\\b"),
-		"votes":     regexp.MustCompile("(?i)\\bvote(s)?\\b|\\bpoll(s)?\\b"),
+		"shares":    regexp.MustCompile("(?i)\\bshare(s)?\\b|\\bretweet(s)?\\b|\\bforward(s)?\\b"),
+		"repost":    regexp.MustCompile("(?i)\\brepost(s)?\\b"),
+		"votes":     regexp.MustCompile("(?i)\\bvote(s)?\\b|\\bpoll(s)?\\b|\\banswer(s)?\\b"),
 		"saves":     regexp.MustCompile("(?i)\\bsave(s)?\\b|\\bbookmark(s)?\\b|\\bsaved\\b"),
+		"reactions": regexp.MustCompile("(?i)\\breaction(s)?\\b|\\breact(s)?\\b|\\bemoji(s)?\\b"),
 	}
 
 	variantRegex = map[string][]struct {
@@ -108,12 +123,16 @@ var (
 		rx      *regexp.Regexp
 	}{
 		"instagram": {
-			{"reel", regexp.MustCompile("(?i)\\breel")},
-			{"story", regexp.MustCompile("(?i)\\bstory|stories")},
+			{"custom", regexp.MustCompile("(?i)\\bcustom\\b")},
+			{"random", regexp.MustCompile("(?i)\\brandom\\b")},
+			{"comments", regexp.MustCompile("(?i)\\bcomment(s)?\\b")},
+			{"reel", regexp.MustCompile("(?i)\\breel(s)?\\b")},
+			{"story", regexp.MustCompile("(?i)\\bstory|stories|poll\\b")},
 			{"igtv", regexp.MustCompile("(?i)\\bigtv\\b")},
-			{"live", regexp.MustCompile("(?i)\\blive\\b")},
+			{"live", regexp.MustCompile("(?i)\\blive|livestream\\b")},
 			{"video", regexp.MustCompile("(?i)\\bvideo\\b")},
-			{"post", regexp.MustCompile("(?i)\\bpost|photo|image")},
+			{"post", regexp.MustCompile("(?i)\\bpost|photo|image\\b")},
+			{"channel", regexp.MustCompile("(?i)\\bchannel|broadcast\\b")},
 		},
 		"facebook": {
 			{"video", regexp.MustCompile("(?i)\\bvideo\\b")},
@@ -146,6 +165,7 @@ var (
 func (s *ProviderService) InvalidateCache() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.cache = nil
 	s.lastUpdate = time.Time{}
 }
 
@@ -165,44 +185,99 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 		return s.cache, nil
 	}
 
-	formData := url.Values{}
-	formData.Set("key", s.cfg.SMMAPIKey)
-	formData.Add("action", "services")
-
-	resp, err := http.PostForm(s.cfg.SMMAPIURL, formData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch services: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("provider returned status %d", resp.StatusCode)
+	type ProviderTarget struct {
+		Key      string
+		Name     string
+		ApiUrl   string
+		ApiKey   string
+		Currency string
 	}
 
-	var rawServices []PanelV2Service
-	if err := json.NewDecoder(resp.Body).Decode(&rawServices); err != nil {
-		return nil, fmt.Errorf("failed to decode services: %v", err)
+	var targets []ProviderTarget
+
+	if dbProviders, err := s.db.Queries.GetActiveSmmProviders(context.Background()); err == nil && len(dbProviders) > 0 {
+		for _, p := range dbProviders {
+			targets = append(targets, ProviderTarget{
+				Key:      p.Key,
+				Name:     p.Name,
+				ApiUrl:   p.ApiUrl,
+				ApiKey:   p.ApiKey,
+				Currency: p.Currency,
+			})
+		}
+	} else {
+		// Fallback to default env provider if DB table is empty
+		targets = append(targets, ProviderTarget{
+			Key:      "topsmm",
+			Name:     "TOPSMM",
+			ApiUrl:   s.cfg.SMMAPIURL,
+			ApiKey:   s.cfg.SMMAPIKey,
+			Currency: s.cfg.SmmCurrency,
+		})
+	}
+
+	type FetchedServiceList struct {
+		Provider ProviderTarget
+		Services []PanelV2Service
+	}
+
+	var allFetched []FetchedServiceList
+
+	for _, target := range targets {
+		if target.ApiUrl == "" || target.ApiKey == "" {
+			continue
+		}
+		formData := url.Values{}
+		formData.Set("key", target.ApiKey)
+		formData.Add("action", "services")
+
+		resp, err := http.PostForm(target.ApiUrl, formData)
+		if err != nil {
+			log.Printf("ERROR: failed to fetch services for provider %s: %v", target.Key, err)
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			log.Printf("ERROR: provider %s returned status %d", target.Key, resp.StatusCode)
+			continue
+		}
+
+		var rawServices []PanelV2Service
+		if err := json.NewDecoder(resp.Body).Decode(&rawServices); err != nil {
+			resp.Body.Close()
+			log.Printf("ERROR: failed to decode services for provider %s: %v", target.Key, err)
+			continue
+		}
+		resp.Body.Close()
+
+		allFetched = append(allFetched, FetchedServiceList{
+			Provider: target,
+			Services: rawServices,
+		})
 	}
 
 	// Fetch overrides from DB
 	overrides := make(map[string]struct {
-		DisplayName      string
-		DisplayDesc      string
-		Multiplier       float64
-		IsHidden         bool
-		Category         string
-		Tags             []string
-		ProviderCategory string
-		PurchaseCount    int
-		DisplayID        string
-		Refill           *bool
-		Cancel           *bool
-		Dripfeed         *bool
-		ServiceType      *string
-		Targeting        *string
-		Quality          *string
-		Stability        *string
-		RefillLimit      int
+		DisplayName         string
+		DisplayDesc         string
+		Multiplier          float64
+		IsHidden            bool
+		Category            string
+		Tags                []string
+		ProviderCategory    string
+		PurchaseCount       int
+		DisplayID           string
+		Refill              *bool
+		Cancel              *bool
+		Dripfeed            *bool
+		ServiceType         *string
+		Targeting           *string
+		Quality             *string
+		Stability           *string
+		RefillLimit         int
+		CustomInputRequired bool
+		CustomInputLabel    string
 	})
 
 	rows, err := s.db.Queries.GetAllServiceOverrides(context.Background())
@@ -230,159 +305,201 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 			if row.DisplayID.Valid {
 				displayID = row.DisplayID.String
 			}
-			
+
 			var refill, cancel, dripfeed *bool
-			if row.Refill.Valid { b := row.Refill.Bool; refill = &b }
-			if row.Cancel.Valid { b := row.Cancel.Bool; cancel = &b }
-			if row.Dripfeed.Valid { b := row.Dripfeed.Bool; dripfeed = &b }
+			if row.Refill.Valid {
+				b := row.Refill.Bool
+				refill = &b
+			}
+			if row.Cancel.Valid {
+				b := row.Cancel.Bool
+				cancel = &b
+			}
+			if row.Dripfeed.Valid {
+				b := row.Dripfeed.Bool
+				dripfeed = &b
+			}
 
 			var stype, targeting, quality, stability *string
-			if row.ServiceType.Valid { s := row.ServiceType.String; stype = &s }
-			if row.Targeting.Valid { s := row.Targeting.String; targeting = &s }
-			if row.Quality.Valid { s := row.Quality.String; quality = &s }
-			if row.Stability.Valid { s := row.Stability.String; stability = &s }
+			if row.ServiceType.Valid {
+				s := row.ServiceType.String
+				stype = &s
+			}
+			if row.Targeting.Valid {
+				s := row.Targeting.String
+				targeting = &s
+			}
+			if row.Quality.Valid {
+				s := row.Quality.String
+				quality = &s
+			}
+			if row.Stability.Valid {
+				s := row.Stability.String
+				stability = &s
+			}
 
 			tags := row.Tags
 			if tags == nil {
 				tags = []string{}
 			}
 
+			customRequired := false
+			if row.CustomInputRequired.Valid {
+				customRequired = row.CustomInputRequired.Bool
+			}
+			customLabel := ""
+			if row.CustomInputLabel.Valid {
+				customLabel = row.CustomInputLabel.String
+			}
+
 			overrides[row.SourceServiceID] = struct {
-				DisplayName      string
-				DisplayDesc      string
-				Multiplier       float64
-				IsHidden         bool
-				Category         string
-				Tags             []string
-				ProviderCategory string
-				PurchaseCount    int
-				DisplayID        string
-				Refill           *bool
-				Cancel           *bool
-				Dripfeed         *bool
-				ServiceType      *string
-				Targeting        *string
-				Quality          *string
-				Stability        *string
-				RefillLimit      int
-			}{displayName, displayDesc, row.RateMultiplier.Float64, row.IsHidden.Bool, category, tags, providerCategory, int(row.PurchaseCount.Int32), displayID, refill, cancel, dripfeed, stype, targeting, quality, stability, int(row.RefillLimit.Int32)}
+				DisplayName         string
+				DisplayDesc         string
+				Multiplier          float64
+				IsHidden            bool
+				Category            string
+				Tags                []string
+				ProviderCategory    string
+				PurchaseCount       int
+				DisplayID           string
+				Refill              *bool
+				Cancel              *bool
+				Dripfeed            *bool
+				ServiceType         *string
+				Targeting           *string
+				Quality             *string
+				Stability           *string
+				RefillLimit         int
+				CustomInputRequired bool
+				CustomInputLabel    string
+			}{
+				displayName, displayDesc, row.RateMultiplier.Float64, row.IsHidden.Bool,
+				category, tags, providerCategory, int(row.PurchaseCount.Int32), displayID,
+				refill, cancel, dripfeed, stype, targeting, quality, stability, int(row.RefillLimit.Int32),
+				customRequired, customLabel,
+			}
 		}
 		log.Printf("DEBUG: Successfully loaded %d overrides from database", len(overrides))
 	}
 
 	normalized := make([]NormalizedSmmService, 0)
-	for _, raw := range rawServices {
-		platform := detectPlatform(raw)
-		serviceType := detectType(raw)
+	for _, batch := range allFetched {
+		providerKey := batch.Provider.Key
 
-		variant := detectVariant(platform, raw)
+		for _, raw := range batch.Services {
+			platform := detectPlatform(raw)
+			serviceType := detectType(raw)
+			variant := detectVariant(platform, raw)
 
-		baseRatePer1000 := toNumber(raw.Rate)
-		// Currency normalization: Internal representation is USD per 1000
-		if s.cfg.SmmCurrency == "INR" && baseRatePer1000 > 0 {
-			baseRatePer1000 = baseRatePer1000 / s.fx.GetUsdToInr()
-		}
-		ratePer1000 := baseRatePer1000 * 2.5 // Default 2.5x multiplier (150% profit)
-		originalMultiplier := 0.0
-
-		// Apply Overrides
-		displayName := ""
-		displayDescription := ""
-		category := raw.Category
-		providerCategory := raw.Category
-		purchaseCount := 0
-		displayID := ""
-		var tags []string = []string{}
-
-		// Flag Overrides (pointers to allow tri-state: true/false/nil)
-		var overrideRefill, overrideCancel, overrideDripfeed *bool
-
-		// Try to match override using raw ID (123) or full ID (source:123)
-		rawSID := raw.Service.String()
-		fullSID := fmt.Sprintf("%s:%s", "topsmm", rawSID)
-
-		var ov struct {
-			DisplayName      string
-			DisplayDesc      string
-			Multiplier       float64
-			IsHidden         bool
-			Category         string
-			Tags             []string
-			ProviderCategory string
-			PurchaseCount    int
-			DisplayID        string
-			Refill           *bool
-			Cancel           *bool
-			Dripfeed         *bool
-			ServiceType      *string
-			Targeting        *string
-			Quality          *string
-			Stability        *string
-			RefillLimit      int
-		}
-		found := false
-
-		if o, ok := overrides[rawSID]; ok {
-			ov = o
-			found = true
-		} else if o, ok := overrides[fullSID]; ok {
-			ov = o
-			found = true
-		}
-
-		if found {
-			if ov.IsHidden {
-				continue
+			providerCurr := strings.ToUpper(batch.Provider.Currency)
+			if providerCurr == "" || strings.ToLower(batch.Provider.Key) == "topsmm" || strings.Contains(strings.ToLower(batch.Provider.Name), "topsmm") {
+				providerCurr = "INR"
 			}
-			if ov.DisplayName != "" {
-				displayName = ov.DisplayName
+
+			baseRatePer1000 := toNumber(raw.Rate)
+			if providerCurr == "INR" && baseRatePer1000 > 0 {
+				baseRatePer1000 = baseRatePer1000 / s.fx.GetUsdToInr()
 			}
-			if ov.DisplayDesc != "" {
-				displayDescription = ov.DisplayDesc
+			ratePer1000 := baseRatePer1000 * 1.0 // Default 1.0x multiplier
+			originalMultiplier := 1.0
+
+			// Overrides
+			displayName := ""
+			displayDescription := ""
+			category := raw.Category
+			providerCategory := raw.Category
+			purchaseCount := 0
+			displayID := ""
+			var tags []string = []string{}
+			var overrideRefill, overrideCancel, overrideDripfeed *bool
+			isHidden := false
+			customInputRequired := false
+			customInputLabel := ""
+
+			rawSID := raw.Service.String()
+			fullSID := fmt.Sprintf("%s:%s", providerKey, rawSID)
+
+			var ov struct {
+				DisplayName         string
+				DisplayDesc         string
+				Multiplier          float64
+				IsHidden            bool
+				Category            string
+				Tags                []string
+				ProviderCategory    string
+				PurchaseCount       int
+				DisplayID           string
+				Refill              *bool
+				Cancel              *bool
+				Dripfeed            *bool
+				ServiceType         *string
+				Targeting           *string
+				Quality             *string
+				Stability           *string
+				RefillLimit         int
+				CustomInputRequired bool
+				CustomInputLabel    string
 			}
-			if ov.Multiplier > 0 {
-				ratePer1000 = baseRatePer1000 * ov.Multiplier
-				originalMultiplier = ov.Multiplier
+			found := false
+
+			if o, ok := overrides[fullSID]; ok {
+				ov = o
+				found = true
+			} else if o, ok := overrides[rawSID]; ok {
+				ov = o
+				found = true
 			}
-			if ov.Tags != nil {
-				tags = ov.Tags
-			}
-			if ov.Category != "" {
-				category = ov.Category
-				// Update serviceType based on manual category if it's one of our known types
-				lowCat := strings.ToLower(ov.Category)
-				knownTypes := []string{"followers", "likes", "views", "comments", "shares", "votes", "saves"}
-				for _, kt := range knownTypes {
-					if lowCat == kt {
-						serviceType = kt
-						break
+
+			if found {
+				isHidden = ov.IsHidden
+				if ov.DisplayName != "" {
+					displayName = ov.DisplayName
+				}
+				if ov.DisplayDesc != "" {
+					displayDescription = ov.DisplayDesc
+				}
+				if ov.Multiplier > 0 {
+					ratePer1000 = baseRatePer1000 * ov.Multiplier
+					originalMultiplier = ov.Multiplier
+				}
+				if ov.Tags != nil {
+					tags = ov.Tags
+				}
+				if ov.Category != "" {
+					category = ov.Category
+					lowCat := strings.ToLower(ov.Category)
+					knownTypes := []string{"followers", "likes", "views", "comments", "shares", "repost", "votes", "saves", "reactions"}
+					for _, kt := range knownTypes {
+						if lowCat == kt {
+							serviceType = kt
+							break
+						}
 					}
 				}
-			}
-			if ov.ProviderCategory != "" {
-				providerCategory = ov.ProviderCategory
-			}
-			purchaseCount = ov.PurchaseCount
-			displayID = ov.DisplayID
+				if ov.ProviderCategory != "" {
+					providerCategory = ov.ProviderCategory
+				}
+				purchaseCount = ov.PurchaseCount
+				displayID = ov.DisplayID
 
-			// New overrides
-			if ov.Refill != nil {
-				overrideRefill = ov.Refill
+				if ov.Refill != nil {
+					overrideRefill = ov.Refill
+				}
+				if ov.Cancel != nil {
+					overrideCancel = ov.Cancel
+				}
+				if ov.Dripfeed != nil {
+					overrideDripfeed = ov.Dripfeed
+				}
+				if ov.ServiceType != nil && *ov.ServiceType != "" && *ov.ServiceType != "default" {
+					serviceType = *ov.ServiceType
+				}
+				customInputRequired = ov.CustomInputRequired
+				customInputLabel = ov.CustomInputLabel
 			}
-			if ov.Cancel != nil {
-				overrideCancel = ov.Cancel
-			}
-			if ov.Dripfeed != nil {
-				overrideDripfeed = ov.Dripfeed
-			}
-			if ov.ServiceType != nil && *ov.ServiceType != "" && *ov.ServiceType != "default" {
-				serviceType = *ov.ServiceType
-			}
-		}
 
-		// Metadata extraction logic (from overrides)
-		var targeting, quality, stability string
-		if ov, ok := overrides[raw.Service.String()]; ok {
+			// Metadata extraction logic (from overrides)
+			var targeting, quality, stability string
 			if ov.Targeting != nil {
 				targeting = *ov.Targeting
 			}
@@ -392,118 +509,191 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 			if ov.Stability != nil {
 				stability = *ov.Stability
 			}
-		}
 
-		if platform == "" && category != "" {
-			// Fallback: If detection failed but manual category exists, try to guess platform
-			lowCat := strings.ToLower(category)
-			if strings.Contains(lowCat, "instagram") {
-				platform = "instagram"
-			} else if strings.Contains(lowCat, "youtube") {
-				platform = "youtube"
-			} else if strings.Contains(lowCat, "facebook") {
-				platform = "facebook"
-			} else if strings.Contains(lowCat, "tiktok") {
-				platform = "tiktok"
-			} else if strings.Contains(lowCat, "telegram") {
-				platform = "telegram"
-			} else if strings.Contains(lowCat, "twitter") || strings.Contains(lowCat, " x ") {
-				platform = "x"
+			if platform == "" && category != "" {
+				lowCat := strings.ToLower(category)
+				if strings.Contains(lowCat, "instagram") {
+					platform = "instagram"
+				} else if strings.Contains(lowCat, "youtube") {
+					platform = "youtube"
+				} else if strings.Contains(lowCat, "facebook") {
+					platform = "facebook"
+				} else if strings.Contains(lowCat, "tiktok") {
+					platform = "tiktok"
+				} else if strings.Contains(lowCat, "telegram") {
+					platform = "telegram"
+				} else if strings.Contains(lowCat, "twitter") || strings.Contains(lowCat, " x ") {
+					platform = "x"
+				}
 			}
-		}
 
-		// If still check passes
-		if platform == "" {
-			continue
-		}
-
-		if serviceType == "" {
-			// Fallback detection from manual category or overridden name
-			lowHay := strings.ToLower(category + " " + raw.Name)
-			if strings.Contains(lowHay, "follower") {
-				serviceType = "followers"
-			} else if strings.Contains(lowHay, "like") {
-				serviceType = "likes"
-			} else if strings.Contains(lowHay, "view") {
-				serviceType = "views"
-			} else if strings.Contains(lowHay, "comment") {
-				serviceType = "comments"
-			} else if strings.Contains(lowHay, "share") {
-				serviceType = "shares"
+			if platform == "" {
+				lowHay := strings.ToLower(raw.Category + " " + raw.Name)
+				if strings.Contains(lowHay, "instagram") || strings.Contains(lowHay, "ig") {
+					platform = "instagram"
+				} else if strings.Contains(lowHay, "youtube") || strings.Contains(lowHay, "yt") {
+					platform = "youtube"
+				} else if strings.Contains(lowHay, "facebook") || strings.Contains(lowHay, "fb") {
+					platform = "facebook"
+				} else if strings.Contains(lowHay, "tiktok") || strings.Contains(lowHay, "tt") {
+					platform = "tiktok"
+				} else if strings.Contains(lowHay, "telegram") || strings.Contains(lowHay, "tg") {
+					platform = "telegram"
+				} else if strings.Contains(lowHay, "twitter") || strings.Contains(lowHay, " x ") {
+					platform = "x"
+				} else if strings.Contains(lowHay, "whatsapp") || strings.Contains(lowHay, "wa") {
+					platform = "whatsapp"
+				} else if strings.Contains(lowHay, "threads") {
+					platform = "threads"
+				} else {
+					platform = "other"
+				}
 			}
-		}
 
-		if serviceType == "" {
-			continue
-		}
+			if serviceType == "" {
+				lowHay := strings.ToLower(raw.Category + " " + raw.Name)
+				if strings.Contains(lowHay, "follower") || strings.Contains(lowHay, "sub") || strings.Contains(lowHay, "member") {
+					serviceType = "followers"
+				} else if strings.Contains(lowHay, "like") || strings.Contains(lowHay, "favorite") {
+					serviceType = "likes"
+				} else if strings.Contains(lowHay, "view") || strings.Contains(lowHay, "watch") || strings.Contains(lowHay, "play") {
+					serviceType = "views"
+				} else if strings.Contains(lowHay, "comment") {
+					serviceType = "comments"
+				} else if strings.Contains(lowHay, "share") || strings.Contains(lowHay, "retweet") {
+					serviceType = "shares"
+				} else if strings.Contains(lowHay, "vote") || strings.Contains(lowHay, "poll") {
+					serviceType = "votes"
+				} else if strings.Contains(lowHay, "repost") {
+					serviceType = "repost"
+				} else if strings.Contains(lowHay, "react") || strings.Contains(lowHay, "emoji") {
+					serviceType = "reactions"
+				} else if strings.Contains(lowHay, "save") {
+					serviceType = "saves"
+				} else {
+					serviceType = "other"
+				}
+			}
 
-		// AUTO-GENERATE Display ID if not set by override
-		if displayID == "" {
-			serviceIDInt := 0
-			fmt.Sscanf(raw.Service.String(), "%d", &serviceIDInt)
-			displayID = fmt.Sprintf("%04d", (serviceIDInt*7919)%10000)
-		}
+			if displayID == "" {
+				serviceIDInt := 0
+				fmt.Sscanf(raw.Service.String(), "%d", &serviceIDInt)
+				displayID = fmt.Sprintf("%04d", (serviceIDInt*7919)%10000)
+			}
 
-		// AUTO-SET App Category if not manually overridden
-		if category == raw.Category || category == "" {
-			category = serviceType // Use just the type to match frontend dropdown
-		}
+			if category == raw.Category || category == "" {
+				category = serviceType
+			}
 
-		// Finalize Boolean Flags
-		finalRefill := toBool(raw.Refill)
-		if overrideRefill != nil {
-			finalRefill = *overrideRefill
-		}
+			finalRefill := toBool(raw.Refill)
+			if overrideRefill != nil {
+				finalRefill = *overrideRefill
+			}
+			finalCancel := toBool(raw.Cancel)
+			if overrideCancel != nil {
+				finalCancel = *overrideCancel
+			}
+			finalDripfeed := toBool(raw.Dripfeed)
+			if overrideDripfeed != nil {
+				finalDripfeed = *overrideDripfeed
+			}
 
-		finalCancel := toBool(raw.Cancel)
-		if overrideCancel != nil {
-			finalCancel = *overrideCancel
-		}
+			minVal := int(toNumber(raw.Min))
+			maxVal := int(toNumber(raw.Max))
+			hasPending := false
+			pendingStatus := ""
+			proposedStatus := ""
+			proposedMin := 0
+			proposedMax := 0
+			proposedRefillTag := ""
+			proposedQuality := ""
+			var proposedCancel *bool
 
-		finalDripfeed := toBool(raw.Dripfeed)
-		if overrideDripfeed != nil {
-			finalDripfeed = *overrideDripfeed
-		}
+			for _, tag := range tags {
+				if strings.HasPrefix(tag, "min:") {
+					if v, err := strconv.ParseInt(strings.TrimPrefix(tag, "min:"), 10, 64); err == nil && v > 0 {
+						minVal = int(v)
+					}
+				} else if strings.HasPrefix(tag, "max:") {
+					if v, err := strconv.ParseInt(strings.TrimPrefix(tag, "max:"), 10, 64); err == nil && v > 0 {
+						maxVal = int(v)
+					}
+				} else if tag == "provider_pending:true" {
+					hasPending = true
+				} else if strings.HasPrefix(tag, "provider_status:") || strings.HasPrefix(tag, "proposed_status:") {
+					pendingStatus = strings.TrimPrefix(strings.TrimPrefix(tag, "provider_status:"), "proposed_status:")
+					proposedStatus = pendingStatus
+				} else if strings.HasPrefix(tag, "proposed_min:") {
+					if v, err := strconv.ParseInt(strings.TrimPrefix(tag, "proposed_min:"), 10, 64); err == nil && v > 0 {
+						proposedMin = int(v)
+					}
+				} else if strings.HasPrefix(tag, "proposed_max:") {
+					if v, err := strconv.ParseInt(strings.TrimPrefix(tag, "proposed_max:"), 10, 64); err == nil && v > 0 {
+						proposedMax = int(v)
+					}
+				} else if strings.HasPrefix(tag, "proposed_refill:") {
+					proposedRefillTag = strings.TrimPrefix(tag, "proposed_refill:")
+				} else if strings.HasPrefix(tag, "proposed_quality:") {
+					proposedQuality = strings.TrimPrefix(tag, "proposed_quality:")
+				} else if strings.HasPrefix(tag, "proposed_cancel:") {
+					b := strings.TrimPrefix(tag, "proposed_cancel:") == "true"
+					proposedCancel = &b
+				}
+			}
 
-		n := NormalizedSmmService{
-			ID:                  fmt.Sprintf("%s:%s", "topsmm", raw.Service.String()),
-			Source:              "topsmm",
-			SourceServiceID:     raw.Service.String(),
-			Platform:            platform,
-			ServiceType:         serviceType,
-			Variant:             variant,
-			ProviderName:        raw.Name,
-			Description:         raw.Description, // Always original
-			Category:            category,
-			ProviderCategory:    providerCategory,
-			DisplayName:         displayName,
-			DisplayDescription:  displayDescription,
-			BaseRatePer1000:     baseRatePer1000,
-			RatePer1000:         ratePer1000,
-			OriginalMultiplier:  originalMultiplier,
-			ProviderCurrency:    s.cfg.SmmCurrency,
-			Min:                 int(toNumber(raw.Min)),
-			Max:                 int(toNumber(raw.Max)),
-			Refill:              finalRefill,
-			Dripfeed:            finalDripfeed,
-			Cancel:              finalCancel,
-			Tags:                tags,
-			RawProviderCategory: raw.Category,
-			PurchaseCount:       purchaseCount,
-			DisplayID:           displayID,
-			Raw:                 raw,
-			Targeting:           targeting,
-			Quality:             quality,
-			Stability:           stability,
-			RefillLimit:         func() int { if ov.RefillLimit > 0 { return ov.RefillLimit } else if finalRefill { return 3 }; return 0 }(),
-		}
+			n := NormalizedSmmService{
+				ID:                           fullSID,
+				Source:                       providerKey,
+				SourceServiceID:              raw.Service.String(),
+				Platform:                     platform,
+				ServiceType:                  serviceType,
+				Variant:                      variant,
+				Name:                         raw.Name,
+				ProviderName:                 raw.Name,
+				Description:                  raw.Description,
+				Category:                     category,
+				ProviderCategory:             providerCategory,
+				DisplayName:                  displayName,
+				DisplayDescription:           displayDescription,
+				BaseRatePer1000:              baseRatePer1000,
+				RatePer1000:                  ratePer1000,
+				OriginalMultiplier:           originalMultiplier,
+				ProviderCurrency:             batch.Provider.Currency,
+				Min:                          minVal,
+				Max:                          maxVal,
+				Refill:                       finalRefill,
+				Dripfeed:                     finalDripfeed,
+				Cancel:                       finalCancel,
+				Tags:                         tags,
+				RawProviderCategory:          raw.Category,
+				PurchaseCount:                purchaseCount,
+				DisplayID:                    displayID,
+				Raw:                          raw,
+				Targeting:                    targeting,
+				Quality:                      quality,
+				Stability:                    stability,
+				RefillLimit:                  func() int { if ov.RefillLimit > 0 { return ov.RefillLimit } else if finalRefill { return 3 }; return 0 }(),
+				IsHidden:                     isHidden,
+				Status:                       func() string { if isHidden { return "hidden" } else { return "active" } }(),
+				CustomInputRequired:          customInputRequired,
+				CustomInputLabel:             customInputLabel,
+				HasPendingProviderSubmission: hasPending,
+				PendingProviderStatus:        pendingStatus,
+				ProposedStatus:               proposedStatus,
+				ProposedMin:                  proposedMin,
+				ProposedMax:                  proposedMax,
+				ProposedRefillTag:            proposedRefillTag,
+				ProposedQuality:              proposedQuality,
+				ProposedCancel:               proposedCancel,
+			}
 
-		avgTime := int(toNumber(raw.AverageTime))
-		if avgTime > 0 {
-			n.AverageTime = &avgTime
-		}
+			avgTime := int(toNumber(raw.AverageTime))
+			if avgTime > 0 {
+				n.AverageTime = &avgTime
+			}
 
-		normalized = append(normalized, n)
+			normalized = append(normalized, n)
+		}
 	}
 
 	s.cache = normalized

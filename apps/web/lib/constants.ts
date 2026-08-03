@@ -1,160 +1,75 @@
-// AUTO-GENERATED, do not edit manually
-export const serviceCategories = {
-  "instagram": [
-    {
-      "name": "likes",
-      "alt": "Likes",
-      "icon": "likes"
-    },
-    {
-      "name": "followers",
-      "alt": "Followers",
-      "icon": "followers"
-    },
-    {
-      "name": "views",
-      "alt": "Views",
-      "icon": "views"
-    },
-    {
-      "name": "comments",
-      "alt": "Comments",
-      "icon": "comments"
-    }
-    ,
-    {
-      "name": "shares",
-      "alt": "Shares",
-      "icon": "shares"
-    },
-    {
-      "name": "saves",
-      "alt": "Saves",
-      "icon": "save"
-    }
-  ],
-  "youtube": [
-    {
-      "name": "views",
-      "alt": "Views",
-      "icon": "views"
-    },
-    {
-      "name": "likes",
-      "alt": "Likes",
-      "icon": "likes"
-    },
-    {
-      "name": "followers",
-      "alt": "Followers",
-      "icon": "followers"
-    },
-    {
-      "name": "comments",
-      "alt": "Comments",
-      "icon": "comments"
-    }
-  ],
-  "tiktok": [
-    {
-      "name": "followers",
-      "alt": "Followers",
-      "icon": "followers"
-    },
-    {
-      "name": "likes",
-      "alt": "Likes",
-      "icon": "likes"
-    },
-    {
-      "name": "views",
-      "alt": "Views",
-      "icon": "views"
-    },
-    {
-      "name": "comments",
-      "alt": "Comments",
-      "icon": "comments"
-    }
-  ],
-  "facebook": [
-    {
-      "name": "followers",
-      "alt": "Followers",
-      "icon": "followers"
-    },
-    {
-      "name": "likes",
-      "alt": "Likes",
-      "icon": "likes"
-    },
-    {
-      "name": "comments",
-      "alt": "Comments",
-      "icon": "comments"
-    },
-    {
-      "name": "views",
-      "alt": "Views",
-      "icon": "views"
-    },
-    {
-      "name": "shares",
-      "alt": "Shares",
-      "icon": "shares"
-    },
-    {
-      "name": "votes",
-      "alt": "Votes",
-      "icon": "votes"
-    }
-  ],
-  "telegram": [
-    {
-      "name": "followers",
-      "alt": "Followers",
-      "icon": "followers"
-    },
-    {
-      "name": "views",
-      "alt": "Views",
-      "icon": "views"
-    }
-  ],
-  "x": [
-    {
-      "name": "followers",
-      "alt": "Followers",
-      "icon": "followers"
-    },
-    {
-      "name": "likes",
-      "alt": "Likes",
-      "icon": "likes"
-    },
-    {
-      "name": "views",
-      "alt": "Views",
-      "icon": "views"
-    },
-    {
-      "name": "votes",
-      "alt": "Votes",
-      "icon": "votes"
-    },
-    {
-      "name": "comments",
-      "alt": "Comments",
-      "icon": "comments"
-    }
-  ]
-};
-
 export const platforms = [
-    { name: 'instagram', alt: 'Instagram' },
-    { name: 'telegram', alt: 'Telegram' },
-    { name: 'facebook', alt: 'Facebook' },
-    { name: 'x', alt: 'X' },
-    { name: 'tiktok', alt: 'TikTok' },
-    { name: 'youtube', alt: 'YouTube' },
+  { name: 'instagram', alt: 'Instagram' },
+  { name: 'youtube', alt: 'YouTube' },
+  { name: 'tiktok', alt: 'TikTok' },
+  { name: 'telegram', alt: 'Telegram' },
+  { name: 'facebook', alt: 'Facebook' },
+  { name: 'x', alt: 'X (Twitter)' },
+  { name: 'whatsapp', alt: 'WhatsApp' },
+  { name: 'threads', alt: 'Threads' },
 ];
+
+export const serviceCategories = {
+  instagram: [
+    { name: "followers", alt: "Followers", icon: "followers" },
+    { name: "likes", alt: "Likes", icon: "likes" },
+    { name: "views", alt: "Views", icon: "views" },
+    { name: "comments", alt: "Comments", icon: "comments" },
+    { name: "shares", alt: "Shares", icon: "shares" },
+    { name: "saves", alt: "Saves", icon: "save" },
+    { name: "votes", alt: "Story Poll Votes", icon: "votes" },
+    { name: "reactions", alt: "Channel Reactions", icon: "likes" },
+    { name: "repost", alt: "Repost", icon: "shares" },
+  ],
+  youtube: [
+    { name: "followers", alt: "Subscribers", icon: "followers" },
+    { name: "views", alt: "Views", icon: "views" },
+    { name: "likes", alt: "Likes", icon: "likes" },
+    { name: "comments", alt: "Comments", icon: "comments" },
+    { name: "shares", alt: "Shares", icon: "shares" },
+  ],
+  tiktok: [
+    { name: "followers", alt: "Followers", icon: "followers" },
+    { name: "likes", alt: "Likes", icon: "likes" },
+    { name: "views", alt: "Views", icon: "views" },
+    { name: "comments", alt: "Comments", icon: "comments" },
+    { name: "shares", alt: "Shares", icon: "shares" },
+    { name: "saves", alt: "Saves", icon: "save" },
+    { name: "repost", alt: "Repost", icon: "shares" },
+  ],
+  facebook: [
+    { name: "followers", alt: "Page Followers", icon: "followers" },
+    { name: "likes", alt: "Post Likes", icon: "likes" },
+    { name: "views", alt: "Views", icon: "views" },
+    { name: "comments", alt: "Comments", icon: "comments" },
+    { name: "shares", alt: "Shares", icon: "shares" },
+    { name: "reactions", alt: "Post Reactions", icon: "likes" },
+    { name: "votes", alt: "Poll Votes", icon: "votes" },
+  ],
+  telegram: [
+    { name: "followers", alt: "Channel Members", icon: "followers" },
+    { name: "views", alt: "Post Views", icon: "views" },
+    { name: "reactions", alt: "Reactions", icon: "likes" },
+    { name: "shares", alt: "Shares / Forwards", icon: "shares" },
+    { name: "votes", alt: "Poll Votes", icon: "votes" },
+  ],
+  x: [
+    { name: "followers", alt: "Followers", icon: "followers" },
+    { name: "likes", alt: "Likes", icon: "likes" },
+    { name: "views", alt: "Tweet Views", icon: "views" },
+    { name: "shares", alt: "Retweets", icon: "shares" },
+    { name: "comments", alt: "Comments", icon: "comments" },
+    { name: "votes", alt: "Poll Votes", icon: "votes" },
+  ],
+  whatsapp: [
+    { name: "followers", alt: "Channel Members", icon: "followers" },
+    { name: "reactions", alt: "Channel Reactions", icon: "likes" },
+    { name: "votes", alt: "Poll Votes", icon: "votes" },
+  ],
+  threads: [
+    { name: "followers", alt: "Followers", icon: "followers" },
+    { name: "likes", alt: "Likes", icon: "likes" },
+    { name: "comments", alt: "Comments", icon: "comments" },
+    { name: "shares", alt: "Shares", icon: "shares" },
+  ],
+};

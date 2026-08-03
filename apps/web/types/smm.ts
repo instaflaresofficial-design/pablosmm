@@ -1,6 +1,6 @@
-export type Platform = 'instagram' | 'facebook' | 'x' | 'telegram' | 'tiktok' | 'youtube';
-export type ServiceType = 'followers' | 'likes' | 'views' | 'comments' | 'shares' | 'votes' | 'saves';
-export type Variant = 'any' | 'post' | 'reel' | 'story' | 'igtv' | 'video' | 'live' | 'short';
+export type Platform = 'instagram' | 'facebook' | 'x' | 'telegram' | 'tiktok' | 'youtube' | 'whatsapp' | 'threads' | 'snapchat' | 'linkedin' | 'twitch';
+export type ServiceType = 'followers' | 'likes' | 'views' | 'comments' | 'shares' | 'votes' | 'saves' | 'repost' | 'reactions';
+export type Variant = 'any' | 'post' | 'reel' | 'story' | 'igtv' | 'video' | 'live' | 'short' | 'channel' | 'comments' | 'custom' | 'random' | 'community' | 'adword' | 'future' | 'tweet' | 'premium' | 'india' | 'targeted';
 
 export interface NormalizedSmmService {
 	id: string; // provider service id
@@ -36,5 +36,9 @@ export interface NormalizedSmmService {
 	stability?: string;
 	tags?: string[];
 	description?: string;
+	isHidden?: boolean;
+	status?: 'active' | 'hidden' | 'disabled';
+	customInputRequired?: boolean;
+	customInputLabel?: string;
 }
 

@@ -118,6 +118,22 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
 
 export function useCurrency() {
   const ctx = useContext(CurrencyContext);
-  if (!ctx) throw new Error('useCurrency must be used within CurrencyProvider');
+  if (!ctx) {
+    return {
+      currency: 'INR',
+      setCurrency: () => {},
+      usdToInr: 95.5,
+      convert: (val: number) => (typeof val === 'number' && !isNaN(val) ? val : 0),
+      formatMoneyCompact: (val: number) => {
+        const n = typeof val === 'number' && !isNaN(val) ? val : 0;
+        return `₹${n.toFixed(2)}`;
+      },
+      formatMoney: (val: number) => {
+        const n = typeof val === 'number' && !isNaN(val) ? val : 0;
+        return `₹${n.toFixed(2)}`;
+      },
+      convertToUsd: (val: number) => (typeof val === 'number' && !isNaN(val) ? val : 0),
+    };
+  }
   return ctx;
 }

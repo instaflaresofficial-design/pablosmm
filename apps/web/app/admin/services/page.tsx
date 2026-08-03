@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { CategorizedServices } from "./_components/categorized-services";
 import type { Service } from "./_components/schema";
 import { getApiBaseUrl } from "@/lib/config";
@@ -6,7 +8,7 @@ async function getServices(): Promise<Service[]> {
     try {
         // Fetch from Go Backend
         const baseUrl = getApiBaseUrl();
-        const res = await fetch(`${baseUrl}/services`, {
+        const res = await fetch(`${baseUrl}/admin/services`, {
             cache: 'no-store' // Always fresh for admin
         });
 

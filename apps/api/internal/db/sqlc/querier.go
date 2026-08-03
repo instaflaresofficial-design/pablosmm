@@ -91,6 +91,11 @@ type Querier interface {
 	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) error
 	UpdateProfile(ctx context.Context, arg UpdateProfileParams) error
 	UpdateUser(ctx context.Context, arg UpdateUserParams) error
+	DeleteSmmProvider(ctx context.Context, id int32) error
+	GetActiveSmmProviders(ctx context.Context) ([]SmmProvider, error)
+	GetSmmProviderByKey(ctx context.Context, key string) (SmmProvider, error)
+	ListSmmProvidersAdmin(ctx context.Context) ([]SmmProvider, error)
+	UpsertSmmProvider(ctx context.Context, arg UpsertSmmProviderParams) (SmmProvider, error)
 	UpdateWalletRequestStatusAndTxn(ctx context.Context, arg UpdateWalletRequestStatusAndTxnParams) error
 	UpsertServiceOverride(ctx context.Context, arg UpsertServiceOverrideParams) error
 	UpsertSetting(ctx context.Context, arg UpsertSettingParams) error

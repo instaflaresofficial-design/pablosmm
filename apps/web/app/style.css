@@ -1335,11 +1335,22 @@ h6 {
   margin: 0;
   line-height: 22px;
 }
+.root .summary-container.mockup-service-info {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.root .summary-container.mockup-service-info::-webkit-scrollbar {
+  display: none;
+}
+.root .summary-container.mockup-service-info .service-info-container {
+  padding: 24px 16px 16px;
+}
 .root .summary-container .service-info-container {
   display: flex;
   flex-direction: column;
   gap: 16px;
   padding: 16px;
+  padding-top: 72px;
   background: linear-gradient(180deg, #040405 0%, #1f1f20 100%);
   /* Category filter pills when rendered inside ServiceInfo */
 }
@@ -5733,17 +5744,67 @@ button:focus {
 }
 /* NEW SUMMARY PAGE STYLES */
 .sticky-slider-wrapper {
-  position: sticky;
-  top: 0;
   z-index: 50;
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(20px);
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.sticky-slider-wrapper.top-slider {
+  position: sticky;
+  top: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.sticky-slider-wrapper.top-slider.hidden {
+  opacity: 0;
+  transform: translateY(-100%);
+  pointer-events: none;
+}
+.sticky-slider-wrapper.top-slider.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.sticky-slider-wrapper.bottom-slider {
+  position: sticky;
+  bottom: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.sticky-slider-wrapper.bottom-slider .slider-container {
+  background-position: 0% 0%;
+  padding: 16px;
+}
+.sticky-slider-wrapper.bottom-slider.hidden {
+  opacity: 0;
+  transform: translateY(100%);
+  pointer-events: none;
+}
+.sticky-slider-wrapper.bottom-slider.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 .service-list-container {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  position: relative;
+}
+.service-list-container .service-details-inline {
+  position: relative;
+  z-index: 1;
+}
+.service-list-container .service-details-inline::after {
+  content: "";
+  opacity: 1;
+  z-index: 2;
+  background: url(/orders/glow.svg) center / 100% 100% no-repeat;
+  width: 100%;
+  height: 68px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  -webkit-mask-image: linear-gradient(#000 20%, #0000 100%);
+  mask-image: linear-gradient(#000 20%, #0000 100%);
 }
 .service-list-container .category-tabs {
   display: flex;
@@ -7308,7 +7369,7 @@ button:focus {
 .install-section {
   position: relative;
   width: 100%;
-  min-height: 75lvh;
+  min-height: 80lvh;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -7584,7 +7645,7 @@ button:focus {
   background: #000;
   padding-top: 64px;
   min-height: 100vh;
-  justify-content: space-between;
+  justify-content: center;
 }
 .live-orders-section .stars-canvas {
   position: absolute;
@@ -7679,7 +7740,7 @@ button:focus {
   position: relative;
   width: 100%;
   overflow: hidden;
-  padding: 40px 0 24px;
+  padding: 20px 0;
   margin-bottom: 20px;
   display: flex;
   justify-content: center;
@@ -7890,6 +7951,6 @@ button:focus {
   opacity: 0.9;
   transform: scale(1.3);
   transform-origin: center bottom;
-  mask-image: linear-gradient(to bottom, transparent 0%, black 15%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 75%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 75%, transparent 100%);
 }
