@@ -56,16 +56,29 @@ export function AdminAuthGuard({ children }: { readonly children: React.ReactNod
       setSubmitting(true);
       setErrorMsg("");
 
-      const res = await apiClient.post<{ status: string; user: AdminUser }>("/admin/login", {
-        login: loginInput.trim(),
-        password: passwordInput,
-      });
+      // Try /admin/login first, fallback to /auth/login
+      try {
+        await apiClient.post("/admin/login", {
+          login: loginInput.trim(),
+          password: passwordInput,
+        });
+      } catch (err1: any) {
+        // Fallback to standard login
+        await apiClient.post("/auth/login", {
+          login: loginInput.trim(),
+          password: passwordInput,
+        });
+      }
 
-      if (res && res.user && res.user.role === "admin") {
-        toast.success("Admin Authentication Successful");
-        setUser(res.user);
-      } else {
+      // Verify user profile after login
+      const meRes = await apiClient.get<{ user: AdminUser }>("/auth/me");
+      if (meRes && meRes.user && meRes.user.role === "admin") {
+        toast.success("Admin Access Granted");
+        setUser(meRes.user);
+      } else if (meRes && meRes.user && meRes.user.role !== "admin") {
         setErrorMsg("Access Denied: Account lacks Administrator privileges");
+      } else {
+        setErrorMsg("Invalid Admin ID or Password");
       }
     } catch (err: any) {
       setErrorMsg(err.message || "Invalid Admin ID or Password");
@@ -77,7 +90,7 @@ export function AdminAuthGuard({ children }: { readonly children: React.ReactNod
   // 1. Loading state
   if (checking) {
     return (
-      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-background text-foreground space-y-4">
+      <div className="fixed inset-0 z-[9999] min-h-screen w-screen flex flex-col items-center justify-center bg-[#090D16] text-white space-y-4">
         <div className="relative flex items-center justify-center">
           <div className="h-16 w-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center animate-pulse">
             <ShieldCheck className="h-8 w-8 text-primary" />
@@ -91,15 +104,15 @@ export function AdminAuthGuard({ children }: { readonly children: React.ReactNod
     );
   }
 
-  // 2. Unauthenticated / Non-Admin -> Render Secure Login Screen Gate
+  // 2. Unauthenticated / Non-Admin -> Fullscreen Clean Gate
   if (!user || user.role !== "admin") {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-[#090D16] text-white p-4 relative overflow-hidden">
+      <div className="fixed inset-0 z-[9999] min-h-screen w-screen flex items-center justify-center bg-[#090D16] text-white p-4 overflow-y-auto">
         {/* Background glow effects */}
         <div className="absolute -top-40 -left-40 w-96 h-96 bg-primary/20 rounded-full blur-[128px] pointer-events-none" />
         <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-emerald-500/15 rounded-full blur-[128px] pointer-events-none" />
 
-        <div className="w-full max-w-md bg-card/80 backdrop-blur-xl border border-border/80 rounded-2xl shadow-2xl overflow-hidden relative z-10">
+        <div className="w-full max-w-md bg-card/90 backdrop-blur-2xl border border-border/80 rounded-2xl shadow-2xl overflow-hidden relative z-10 my-auto">
           {/* Header Banner */}
           <div className="p-6 pb-4 text-center border-b border-border/50 bg-muted/20">
             <div className="mx-auto mb-3 h-14 w-14 rounded-2xl bg-gradient-to-br from-primary/20 to-emerald-500/20 border border-primary/30 flex items-center justify-center shadow-inner">
@@ -122,7 +135,7 @@ export function AdminAuthGuard({ children }: { readonly children: React.ReactNod
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-2 text-left">
               <Label htmlFor="admin-id" className="text-xs font-semibold text-foreground">
                 Admin Username or Email
               </Label>
@@ -131,17 +144,17 @@ export function AdminAuthGuard({ children }: { readonly children: React.ReactNod
                 <Input
                   id="admin-id"
                   type="text"
-                  placeholder="Enter admin ID or email"
+                  placeholder="admin or admin@pablosmm.com"
                   value={loginInput}
                   onChange={(e) => setLoginInput(e.target.value)}
-                  className="pl-9 bg-background/50 h-11 border-border/60 focus:border-primary text-sm font-medium rounded-xl"
+                  className="pl-9 bg-background/50 h-11 border-border/60 focus:border-primary text-sm font-medium rounded-xl text-foreground"
                   autoComplete="username"
                   autoFocus
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 text-left">
               <div className="flex items-center justify-between">
                 <Label htmlFor="admin-password" className="text-xs font-semibold text-foreground">
                   Admin Password
@@ -155,7 +168,7 @@ export function AdminAuthGuard({ children }: { readonly children: React.ReactNod
                   placeholder="••••••••••••"
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
-                  className="pl-9 pr-10 bg-background/50 h-11 border-border/60 focus:border-primary text-sm font-medium rounded-xl"
+                  className="pl-9 pr-10 bg-background/50 h-11 border-border/60 focus:border-primary text-sm font-medium rounded-xl text-foreground"
                   autoComplete="current-password"
                 />
                 <button
@@ -171,7 +184,7 @@ export function AdminAuthGuard({ children }: { readonly children: React.ReactNod
             <Button
               type="submit"
               disabled={submitting}
-              className="w-full h-11 text-sm font-bold gap-2 bg-gradient-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-700 text-white shadow-lg shadow-primary/20 rounded-xl transition-all"
+              className="w-full h-11 text-sm font-bold gap-2 bg-gradient-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-700 text-white shadow-lg shadow-primary/20 rounded-xl transition-all cursor-pointer"
             >
               {submitting ? (
                 <>
