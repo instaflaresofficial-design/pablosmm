@@ -725,7 +725,7 @@ export function ProviderVerificationPortal({
 
           <Button
             size="lg"
-            onClick={handleSubmitVerification}
+            onClick={() => handleSubmitVerification()}
             disabled={isSubmitting}
             className="w-full sm:w-auto gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md text-sm font-bold h-11 px-6 rounded-xl shrink-0"
           >
