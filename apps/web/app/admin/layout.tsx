@@ -11,6 +11,7 @@ import { SIDEBAR_COLLAPSIBLE_VALUES, SIDEBAR_VARIANT_VALUES } from "@/lib/admin/
 import { cn } from "@/lib/admin/utils";
 import { getPreference } from "@/server/server-actions";
 
+import { AdminAuthGuard } from "./_components/admin-auth-guard";
 import { AccountSwitcher } from "./_components/sidebar/account-switcher";
 import { LayoutControls } from "./_components/sidebar/layout-controls";
 import { SearchDialog } from "./_components/sidebar/search-dialog";
@@ -29,46 +30,48 @@ export default async function Layout({ children }: Readonly<{ children: ReactNod
   ]);
 
   return (
-    <div className="admin-body min-h-screen">
-      <PreferencesStoreProvider
-        themeMode={theme_mode}
-        themePreset={theme_preset}
-        contentLayout={content_layout}
-        navbarStyle={navbar_style}
-        font={font}
-      >
-        <SidebarProvider defaultOpen={defaultOpen}>
-          <AppSidebar variant={variant} collapsible={collapsible} />
-          <SidebarInset
-            className={cn(
-              "[html[data-content-layout=centered]_&]:mx-auto! [html[data-content-layout=centered]_&]:max-w-screen-2xl!",
-              "max-[113rem]:peer-data-[variant=inset]:mr-2! min-[101rem]:peer-data-[variant=inset]:peer-data-[state=collapsed]:mr-auto!",
-            )}
-          >
-            <header
+    <AdminAuthGuard>
+      <div className="admin-body min-h-screen">
+        <PreferencesStoreProvider
+          themeMode={theme_mode}
+          themePreset={theme_preset}
+          contentLayout={content_layout}
+          navbarStyle={navbar_style}
+          font={font}
+        >
+          <SidebarProvider defaultOpen={defaultOpen}>
+            <AppSidebar variant={variant} collapsible={collapsible} />
+            <SidebarInset
               className={cn(
-                "flex h-12 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12",
-                "[html[data-navbar-style=sticky]_&]:sticky [html[data-navbar-style=sticky]_&]:top-0 [html[data-navbar-style=sticky]_&]:z-50 [html[data-navbar-style=sticky]_&]:overflow-hidden [html[data-navbar-style=sticky]_&]:rounded-t-[inherit] [html[data-navbar-style=sticky]_&]:bg-background/50 [html[data-navbar-style=sticky]_&]:backdrop-blur-md",
+                "[html[data-content-layout=centered]_&]:mx-auto! [html[data-content-layout=centered]_&]:max-w-screen-2xl!",
+                "max-[113rem]:peer-data-[variant=inset]:mr-2! min-[101rem]:peer-data-[variant=inset]:peer-data-[state=collapsed]:mr-auto!",
               )}
             >
-              <div className="flex w-full items-center justify-between px-4 lg:px-6">
-                <div className="flex items-center gap-1 lg:gap-2">
-                  <SidebarTrigger className="-ml-1" />
-                  <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
-                  <SearchDialog />
+              <header
+                className={cn(
+                  "flex h-12 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12",
+                  "[html[data-navbar-style=sticky]_&]:sticky [html[data-navbar-style=sticky]_&]:top-0 [html[data-navbar-style=sticky]_&]:z-50 [html[data-navbar-style=sticky]_&]:overflow-hidden [html[data-navbar-style=sticky]_&]:rounded-t-[inherit] [html[data-navbar-style=sticky]_&]:bg-background/50 [html[data-navbar-style=sticky]_&]:backdrop-blur-md",
+                )}
+              >
+                <div className="flex w-full items-center justify-between px-4 lg:px-6">
+                  <div className="flex items-center gap-1 lg:gap-2">
+                    <SidebarTrigger className="-ml-1" />
+                    <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
+                    <SearchDialog />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <LayoutControls />
+                    <ThemeSwitcher />
+                    <AccountSwitcher users={users} />
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <LayoutControls />
-                  <ThemeSwitcher />
-                  <AccountSwitcher users={users} />
-                </div>
-              </div>
-            </header>
-            <div className="h-full p-4 md:p-6">{children}</div>
-          </SidebarInset>
-        </SidebarProvider>
-        <Toaster />
-      </PreferencesStoreProvider>
-    </div>
+              </header>
+              <div className="h-full p-4 md:p-6">{children}</div>
+            </SidebarInset>
+          </SidebarProvider>
+          <Toaster />
+        </PreferencesStoreProvider>
+      </div>
+    </AdminAuthGuard>
   );
 }

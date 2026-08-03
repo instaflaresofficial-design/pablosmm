@@ -25,6 +25,7 @@ func New(cfg *config.Config) *http.Server {
 	fxSvc := fx.New(cfg.UsdToInr)
 	metaSvc := metadata.New()
 	h := handlers.New(database, cfg, fxSvc, metaSvc)
+	h.EnsureDefaultAdminUser()
 
 	r := chi.NewRouter()
 
@@ -102,43 +103,52 @@ func New(cfg *config.Config) *http.Server {
 		r.Get("/profile", h.GetProfile)
 		r.Get("/fx", h.GetFX)
 		r.Get("/metadata", h.GetMetadata)
-		r.Get("/admin/services", h.GetAdminServices)
-		r.Get("/admin/services/refresh", h.RefreshServices)
-		r.Post("/admin/services/override", h.UpdateServiceOverride)
-		r.Post("/admin/services/bulk-override", h.BulkUpdateServiceOverrides)
-		r.Post("/admin/services/curate", h.CurateServicesAdmin)
-		r.Post("/admin/services/clear-pending-provider-submissions", h.ClearPendingProviderSubmissions)
-		r.Post("/admin/services/ai-rewrite", h.AIRewriteService)
 
-		// Admin SMM Providers
-		r.Get("/admin/providers", h.ListProvidersAdmin)
-		r.Post("/admin/providers", h.UpsertProviderAdmin)
-		r.Delete("/admin/providers/{id}", h.DeleteProviderAdmin)
+		// Public Admin Login Endpoint
+		r.Post("/admin/login", h.AdminLogin)
 
-		// Admin User Management
-		r.Get("/admin/users", h.GetUsers)
-		r.Get("/admin/users/{id}", h.GetUser)
-		r.Post("/admin/users/{id}/wallet", h.UpdateUserWallet)
-		r.Patch("/admin/users/{id}", h.UpdateUser)
+		// Protected Admin Routes (Requires valid JWT with role == 'admin')
+		r.Group(func(r chi.Router) {
+			r.Use(h.AdminAuthMiddleware)
 
-		// Admin Orders
-		r.Get("/admin/orders", h.GetAdminOrders)
-		r.Post("/admin/orders/{id}/refund", h.RefundOrder)
-		r.Patch("/admin/orders/{id}/refills", h.UpdateOrderRefills)
+			r.Get("/admin/services", h.GetAdminServices)
+			r.Get("/admin/services/refresh", h.RefreshServices)
+			r.Post("/admin/services/override", h.UpdateServiceOverride)
+			r.Post("/admin/services/bulk-override", h.BulkUpdateServiceOverrides)
+			r.Post("/admin/services/curate", h.CurateServicesAdmin)
+			r.Post("/admin/services/clear-pending-provider-submissions", h.ClearPendingProviderSubmissions)
+			r.Post("/admin/services/ai-rewrite", h.AIRewriteService)
 
-		// Admin Order Requests
-		r.Get("/admin/order-requests", h.GetAdminOrderRequests)
-		r.Post("/admin/order-requests/{id}/approve", h.ApproveOrderRequest)
-		r.Post("/admin/order-requests/{id}/reject", h.RejectOrderRequest)
+			// Admin SMM Providers
+			r.Get("/admin/providers", h.ListProvidersAdmin)
+			r.Post("/admin/providers", h.UpsertProviderAdmin)
+			r.Delete("/admin/providers/{id}", h.DeleteProviderAdmin)
 
-		// Admin Wallet Requests
-		r.Get("/admin/wallet-requests", h.ListWalletRequests)
-		r.Post("/admin/wallet-requests/{id}/approve", h.ApproveWalletRequest)
-		r.Post("/admin/wallet-requests/{id}/reject", h.RejectWalletRequest)
+			// Admin User Management
+			r.Get("/admin/users", h.GetUsers)
+			r.Get("/admin/users/{id}", h.GetUser)
+			r.Post("/admin/users/{id}/wallet", h.UpdateUserWallet)
+			r.Patch("/admin/users/{id}", h.UpdateUser)
 
-		// Admin Settings
-		r.Get("/admin/settings", h.GetSettings)
-		r.Post("/admin/settings", h.UpdateSettings)
+			// Admin Orders
+			r.Get("/admin/orders", h.GetAdminOrders)
+			r.Post("/admin/orders/{id}/refund", h.RefundOrder)
+			r.Patch("/admin/orders/{id}/refills", h.UpdateOrderRefills)
+
+			// Admin Order Requests
+			r.Get("/admin/order-requests", h.GetAdminOrderRequests)
+			r.Post("/admin/order-requests/{id}/approve", h.ApproveOrderRequest)
+			r.Post("/admin/order-requests/{id}/reject", h.RejectOrderRequest)
+
+			// Admin Wallet Requests
+			r.Get("/admin/wallet-requests", h.ListWalletRequests)
+			r.Post("/admin/wallet-requests/{id}/approve", h.ApproveWalletRequest)
+			r.Post("/admin/wallet-requests/{id}/reject", h.RejectWalletRequest)
+
+			// Admin Settings
+			r.Get("/admin/settings", h.GetSettings)
+			r.Post("/admin/settings", h.UpdateSettings)
+		})
 	})
 
 	return &http.Server{

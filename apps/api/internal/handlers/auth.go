@@ -544,3 +544,171 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Password changed successfully"})
 }
+
+// AdminAuthMiddleware validates JWT and enforces role == "admin"
+func (h *Handler) AdminAuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var tokenStr string
+
+		// 1. Check Cookie
+		if cookie, err := r.Cookie("auth_token"); err == nil && cookie.Value != "" {
+			tokenStr = cookie.Value
+		} else {
+			// 2. Check Authorization Header
+			authHeader := r.Header.Get("Authorization")
+			if strings.HasPrefix(authHeader, "Bearer ") {
+				tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
+			}
+		}
+
+		if tokenStr == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Unauthorized: Admin authentication required"})
+			return
+		}
+
+		claims := &Claims{}
+		token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
+			return jwtKey, nil
+		})
+
+		if err != nil || !token.Valid {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Unauthorized: Invalid or expired token"})
+			return
+		}
+
+		// Verify role in database for maximum security
+		var currentRole string
+		err = h.db.Pool.QueryRow(context.Background(), "SELECT role FROM users WHERE id = $1", claims.UserID).Scan(&currentRole)
+		if err != nil || currentRole != "admin" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Forbidden: Admin privileges required"})
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), "userID", claims.UserID)
+		ctx = context.WithValue(ctx, "userRole", "admin")
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// AdminLogin authenticates an admin user specifically
+func (h *Handler) AdminLogin(w http.ResponseWriter, r *http.Request) {
+	var req LoginReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	loginStr := strings.TrimSpace(req.Login)
+	if loginStr == "" || req.Password == "" {
+		http.Error(w, "ID/Username/Email and Password are required", http.StatusBadRequest)
+		return
+	}
+
+	userRow, err := h.db.Queries.GetUserForLogin(context.Background(), pgtype.Text{String: loginStr, Valid: true})
+	if err != nil {
+		http.Error(w, "Invalid Admin ID or Password", http.StatusUnauthorized)
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(userRow.PasswordHash.String), []byte(req.Password)); err != nil {
+		http.Error(w, "Invalid Admin ID or Password", http.StatusUnauthorized)
+		return
+	}
+
+	if userRow.Role != "admin" {
+		http.Error(w, "Access Denied: Account does not have admin privileges", http.StatusForbidden)
+		return
+	}
+
+	expirationTime := time.Now().Add(24 * time.Hour * 7)
+	claims := &Claims{
+		UserID: int(userRow.ID),
+		Role:   "admin",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(jwtKey)
+	if err != nil {
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		return
+	}
+
+	isProd := os.Getenv("APP_ENV") == "production"
+	cookie := &http.Cookie{
+		Name:     "auth_token",
+		Value:    tokenString,
+		Expires:  expirationTime,
+		HttpOnly: true,
+		Secure:   isProd,
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+	}
+
+	if strings.Contains(os.Getenv("FRONTEND_URL"), "pablosmm.com") {
+		cookie.Domain = ".pablosmm.com"
+	}
+
+	http.SetCookie(w, cookie)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "success",
+		"token":  tokenString,
+		"user": map[string]interface{}{
+			"id":   userRow.ID,
+			"role": "admin",
+		},
+	})
+}
+
+// EnsureDefaultAdminUser creates or promotes the default admin account if no admin exists
+func (h *Handler) EnsureDefaultAdminUser() {
+	var count int
+	err := h.db.Pool.QueryRow(context.Background(), "SELECT COUNT(*) FROM users WHERE role = 'admin'").Scan(&count)
+	if err == nil && count > 0 {
+		return
+	}
+
+	adminUsername := getEnvOrDefault("ADMIN_USERNAME", "admin")
+	adminEmail := getEnvOrDefault("ADMIN_EMAIL", "admin@pablosmm.com")
+	adminPassword := getEnvOrDefault("ADMIN_PASSWORD", "admin123456")
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
+	if err != nil {
+		log.Printf("ERROR: Failed to hash admin password: %v", err)
+		return
+	}
+
+	var newAdminID int32
+	err = h.db.Pool.QueryRow(context.Background(),
+		`INSERT INTO users (name, email, username, password_hash, role)
+		 VALUES ($1, $2, $3, $4, 'admin')
+		 ON CONFLICT (username) DO UPDATE SET role = 'admin', password_hash = EXCLUDED.password_hash
+		 RETURNING id`,
+		"Administrator", adminEmail, adminUsername, string(hashedPassword),
+	).Scan(&newAdminID)
+
+	if err != nil {
+		log.Printf("ERROR: Failed to create default admin user: %v", err)
+		return
+	}
+
+	h.db.Pool.Exec(context.Background(), "INSERT INTO wallets (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING", newAdminID)
+	log.Printf("🔒 Default admin account verified (Username: %s, Email: %s)", adminUsername, adminEmail)
+}
+
+func getEnvOrDefault(key, fallback string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
+	}
+	return fallback
+}
