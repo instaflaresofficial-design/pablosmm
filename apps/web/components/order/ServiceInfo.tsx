@@ -294,7 +294,24 @@ export default function ServiceInfo({ services, index = 0, onChangeIndex, servic
   const serviceTypeLabel = current ? `${String(current.type || '')}${current.variant && current.variant !== 'any' ? ' · ' + String(current.variant) : ''}` : 'Likes/Reactions';
   function capitalize(s?: string) { if (!s) return ''; return s.charAt(0).toUpperCase() + s.slice(1); }
   const platformLabel = capitalize(current?.platform ?? 'instagram');
-  const title = current ? `${current.displayName || current.providerName || 'Service'} · ${current.displayId || ''}` : 'Service';
+
+  // Extract variant name for display
+  let variantName: string | null = current?.variant && !['any', 'Default', 'Standard'].includes(String(current.variant)) ? String(current.variant) : null;
+  if (!variantName && current?.tags && Array.isArray(current.tags)) {
+    for (const t of current.tags) {
+      if (t.startsWith('variant_name:')) {
+        const tagVariant = t.replace('variant_name:', '').trim();
+        if (tagVariant && !['Standard', 'Default'].includes(tagVariant)) {
+          variantName = tagVariant;
+          break;
+        }
+      }
+    }
+  }
+
+  const baseName = current?.displayName || current?.providerName || 'Service';
+  const displayTitle = variantName ? `${baseName} — ${variantName}` : baseName;
+  const title = current ? `${displayTitle} · ${current.displayId || ''}` : 'Service';
 
   return (
     <div className='service-info-container'>
@@ -321,7 +338,7 @@ export default function ServiceInfo({ services, index = 0, onChangeIndex, servic
         </div>
         <div className="detail-item">
           <span className="detail-label">SERVICE TYPE</span>
-          <span className="detail-value">{current ? current.type : 'Likes/Reactions'}</span>
+          <span className="detail-value">{current ? `${current.type}${variantName ? ` (${variantName})` : ''}` : 'Likes/Reactions'}</span>
         </div>
         <div className="detail-item">
           <span className="detail-label">DRIPFEED</span>
