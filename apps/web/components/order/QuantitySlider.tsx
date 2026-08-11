@@ -322,6 +322,10 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
             className="switch-btn"
             onClick={() => {
               const newMode = mode === 'qty' ? 'amount' : 'qty';
+              if (newMode === 'amount') {
+                const activeAmt = convert(totalPriceInr);
+                setBudgetValue(currency === 'INR' ? String(Math.round(activeAmt)) : activeAmt.toFixed(2));
+              }
               if (modeProp === undefined) setInternalMode(newMode);
               if (onModeChange) onModeChange(newMode);
               if (isMobile) lightImpact();

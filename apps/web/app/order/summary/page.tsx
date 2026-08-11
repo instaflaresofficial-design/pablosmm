@@ -377,8 +377,9 @@ const SummaryContent = () => {
     return Math.max(...groupedFiltered.map(g => g.max));
   }, [selectedGroup, groupedFiltered]);
   
-  // Use explicit sellPriceInr from the mapped variant, otherwise fallback to wholesale rate
-  const activeSellPrice = selectedVariantInfo?.sellPriceInr ?? (selectedService?.ratePer1000 || 0);
+  // Use explicit sellPriceInr from the mapped variant, otherwise fallback to first available service rate
+  const fallbackRate = groupedFiltered[0]?.variants[0]?.sellPriceInr ?? groupedFiltered[0]?.variants[0]?.service?.ratePer1000 ?? 30;
+  const activeSellPrice = selectedVariantInfo?.sellPriceInr ?? selectedService?.ratePer1000 ?? fallbackRate;
   const pricePerUnit = activeSellPrice / 1000;
 
   // Order state
