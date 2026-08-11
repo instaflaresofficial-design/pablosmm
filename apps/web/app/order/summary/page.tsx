@@ -54,13 +54,16 @@ function matchesVariantFilter(s: NormalizedSmmService, variant: string): boolean
     return s.variant === 'random' || s.variant === 'any' || (!text.includes('custom'));
   }
   if (v === 'reel') {
-    return text.includes('reel') || text.includes('video') || text.includes('igtv') || (!text.includes('story') && !text.includes('comment'));
+    return text.includes('reel') || text.includes('video') || text.includes('igtv') || (!text.includes('story') && !text.includes('dashboard') && !text.includes('profile') && !text.includes('comment'));
   }
   if (v === 'post') {
-    return text.includes('post') || text.includes('photo') || (!text.includes('story') && !text.includes('comment'));
+    return text.includes('post') || text.includes('photo') || text.includes('reach') || text.includes('impression');
   }
   if (v === 'story') {
     return text.includes('story') || text.includes('stories');
+  }
+  if (v === 'dashboard') {
+    return text.includes('dashboard') || text.includes('profile') || text.includes('explore') || text.includes('visit') || text.includes('statistic');
   }
   if (v === 'comments' || v === 'comment') {
     return text.includes('comment');

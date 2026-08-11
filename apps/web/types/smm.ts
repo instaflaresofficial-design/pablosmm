@@ -1,6 +1,6 @@
 export type Platform = 'instagram' | 'facebook' | 'x' | 'telegram' | 'tiktok' | 'youtube' | 'whatsapp' | 'threads' | 'snapchat' | 'linkedin' | 'twitch';
 export type ServiceType = 'followers' | 'likes' | 'views' | 'comments' | 'shares' | 'votes' | 'saves' | 'repost' | 'reactions';
-export type Variant = 'any' | 'post' | 'reel' | 'story' | 'igtv' | 'video' | 'live' | 'short' | 'channel' | 'comments' | 'custom' | 'random' | 'community' | 'adword' | 'future' | 'tweet' | 'premium' | 'group' | 'india' | 'targeted';
+export type Variant = 'any' | 'post' | 'reel' | 'story' | 'igtv' | 'video' | 'live' | 'short' | 'channel' | 'comments' | 'custom' | 'random' | 'community' | 'adword' | 'future' | 'tweet' | 'premium' | 'group' | 'india' | 'targeted' | 'dashboard';
 
 export interface NormalizedSmmService {
 	id: string; // provider service id

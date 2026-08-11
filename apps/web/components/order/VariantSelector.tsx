@@ -29,11 +29,10 @@ const getVariantLabel = (v: string, platform?: string, serviceType?: string): st
       if (v === 'comments') return 'Comment Likes';
     }
     if (serviceType === 'views') {
-      if (v === 'reel' || v === 'any') return 'Reels Views';
+      if (v === 'reel' || v === 'any') return 'Reels / IGTV / Video';
+      if (v === 'post') return 'Posts / Reach';
       if (v === 'story') return 'Story Views';
-      if (v === 'video') return 'Video Views';
-      if (v === 'live') return 'Live Stream Views';
-      if (v === 'igtv') return 'IGTV Views';
+      if (v === 'dashboard') return 'Dashboard / Profile Views';
     }
     if (serviceType === 'comments') {
       if (v === 'custom') return 'Custom Comments';
@@ -137,7 +136,7 @@ const VariantSelector: React.FC<VariantSelectorProps> = ({ platform, serviceType
     // Specific platform rules
     if (platform === 'instagram' && serviceType === 'followers') return ['any', 'channel'] as Variant[];
     if (platform === 'instagram' && serviceType === 'likes') return ['post', 'reel', 'story', 'comments'] as Variant[];
-    if (platform === 'instagram' && serviceType === 'views') return ['reel', 'story', 'video', 'live', 'igtv'] as Variant[];
+    if (platform === 'instagram' && serviceType === 'views') return ['reel', 'post', 'story', 'dashboard'] as Variant[];
     if (platform === 'instagram' && serviceType === 'comments') return ['custom', 'random'] as Variant[];
 
     if (platform === 'youtube' && serviceType === 'views') return ['video', 'short', 'live', 'adword'] as Variant[];
