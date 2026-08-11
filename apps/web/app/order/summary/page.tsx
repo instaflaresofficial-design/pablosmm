@@ -108,27 +108,33 @@ const SummaryContent = () => {
 
   const { baseList, availableTagsByType, allSortedTags } = useMemo(() => {
     const bySearch = search.trim().toLowerCase();
-    let list;
-    if (bySearch) {
-      list = all.filter((s) => {
-        const hay = `${s.displayId ?? ''} ${s.source ?? ''} ${s.providerName} ${s.type} ${s.category}`.toLowerCase();
-        return hay.includes(bySearch);
-      });
-    } else {
-      list = all.filter((s) => {
-        if (s.platform !== platform || s.type !== service) return false;
-        if (variant === 'any') return true;
+    const list = all.filter((s) => {
+      // 1. Strictly enforce active platform and service type selection
+      if (s.platform !== platform || s.type !== service) return false;
+
+      // 2. Enforce variant filter
+      if (variant !== 'any') {
         if (variant === 'custom') {
           const name = (s.displayName || s.providerName || '').toLowerCase();
-          return s.variant === 'custom' || name.includes('custom') || (s.category || '').toLowerCase().includes('custom');
-        }
-        if (variant === 'random') {
+          const isCustom = s.variant === 'custom' || name.includes('custom') || (s.category || '').toLowerCase().includes('custom');
+          if (!isCustom) return false;
+        } else if (variant === 'random') {
           const name = (s.displayName || s.providerName || '').toLowerCase();
-          return s.variant === 'random' || s.variant === 'any' || (!name.includes('custom') && !(s.category || '').toLowerCase().includes('custom'));
+          const isRandom = s.variant === 'random' || s.variant === 'any' || (!name.includes('custom') && !(s.category || '').toLowerCase().includes('custom'));
+          if (!isRandom) return false;
+        } else if (s.variant !== variant) {
+          return false;
         }
-        return s.variant === variant;
-      });
-    }
+      }
+
+      // 3. Apply search query within selected platform/service
+      if (bySearch) {
+        const hay = `${s.displayId ?? ''} ${s.source ?? ''} ${s.displayName ?? ''} ${s.providerName ?? ''} ${s.variant ?? ''} ${s.type ?? ''} ${s.category ?? ''} ${s.description ?? ''}`.toLowerCase();
+        return hay.includes(bySearch);
+      }
+
+      return true;
+    });
 
     const tagCounts = new Map<string, { count: number, type: string }>();
     (list || []).forEach(s => {
