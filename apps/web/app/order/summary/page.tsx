@@ -41,6 +41,64 @@ function parseAvgMins(s: any): number {
   return isNaN(num) || num <= 0 ? 9999 : num;
 }
 
+function matchesVariantFilter(s: NormalizedSmmService, variant: string): boolean {
+  if (!variant || variant === 'any') return true;
+
+  const v = variant.toLowerCase();
+  const text = `${s.variant ?? ''} ${s.displayName ?? ''} ${s.providerName ?? ''} ${s.category ?? ''} ${s.description ?? ''}`.toLowerCase();
+
+  if (v === 'custom') {
+    return s.variant === 'custom' || text.includes('custom');
+  }
+  if (v === 'random') {
+    return s.variant === 'random' || s.variant === 'any' || (!text.includes('custom'));
+  }
+  if (v === 'reel') {
+    return text.includes('reel') || text.includes('video') || text.includes('igtv') || (!text.includes('story') && !text.includes('comment'));
+  }
+  if (v === 'post') {
+    return text.includes('post') || text.includes('photo') || (!text.includes('story') && !text.includes('comment'));
+  }
+  if (v === 'story') {
+    return text.includes('story') || text.includes('stories');
+  }
+  if (v === 'comments' || v === 'comment') {
+    return text.includes('comment');
+  }
+  if (v === 'live') {
+    return text.includes('live') || text.includes('stream');
+  }
+  if (v === 'igtv') {
+    return text.includes('igtv');
+  }
+  if (v === 'short') {
+    return text.includes('short');
+  }
+  if (v === 'channel') {
+    return text.includes('channel') || text.includes('broadcast');
+  }
+  if (v === 'group') {
+    return text.includes('group');
+  }
+  if (v === 'premium') {
+    return text.includes('premium');
+  }
+  if (v === 'adword') {
+    return text.includes('adword');
+  }
+  if (v === 'future') {
+    return text.includes('future');
+  }
+  if (v === 'community') {
+    return text.includes('community');
+  }
+  if (v === 'tweet') {
+    return text.includes('tweet') || text.includes('post');
+  }
+
+  return s.variant === variant || text.includes(v);
+}
+
 function computeBestRatedScore(s: any): number {
   if (!s) return 0;
   const { tags, drop, refill, speed } = getServiceTags(s);
@@ -112,20 +170,8 @@ const SummaryContent = () => {
       // 1. Strictly enforce active platform and service type selection
       if (s.platform !== platform || s.type !== service) return false;
 
-      // 2. Enforce variant filter
-      if (variant !== 'any') {
-        if (variant === 'custom') {
-          const name = (s.displayName || s.providerName || '').toLowerCase();
-          const isCustom = s.variant === 'custom' || name.includes('custom') || (s.category || '').toLowerCase().includes('custom');
-          if (!isCustom) return false;
-        } else if (variant === 'random') {
-          const name = (s.displayName || s.providerName || '').toLowerCase();
-          const isRandom = s.variant === 'random' || s.variant === 'any' || (!name.includes('custom') && !(s.category || '').toLowerCase().includes('custom'));
-          if (!isRandom) return false;
-        } else if (s.variant !== variant) {
-          return false;
-        }
-      }
+      // 2. Enforce variant / sub-category filter
+      if (!matchesVariantFilter(s, variant)) return false;
 
       // 3. Apply search query within selected platform/service
       if (bySearch) {
