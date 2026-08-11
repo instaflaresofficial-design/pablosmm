@@ -4,6 +4,14 @@ import path from "path";
 
 const SUBMISSIONS_FILE = path.join(process.cwd(), "admin-data", "provider-submissions.json");
 
+function getBackendBaseUrl(): string {
+  if (process.env.BACKEND_URL) {
+    return process.env.BACKEND_URL.replace(/\/api\/?$/, "");
+  }
+  const isProd = process.env.NODE_ENV === "production";
+  return isProd ? "https://pablosmm.onrender.com" : "http://localhost:8080";
+}
+
 function getSubmissions(): any[] {
   try {
     if (fs.existsSync(SUBMISSIONS_FILE)) {
@@ -34,6 +42,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const backendBaseUrl = getBackendBaseUrl();
+
   try {
     const body = await request.json();
     const action = body?.action;
@@ -54,7 +64,7 @@ export async function POST(request: Request) {
       });
       writeSubmissions(updatedList);
 
-      // Attempt to forward to Go backend curate endpoint
+      // Forward to Go backend curate endpoint
       try {
         const enrichedUpdates = (body?.updates || []).map((u: any) => ({
           ...u,
@@ -62,12 +72,27 @@ export async function POST(request: Request) {
           rejectProviderSubmission: action === "reject"
         }));
 
-        await fetch("http://localhost:8080/api/admin/services/curate", {
+        const backendRes = await fetch(`${backendBaseUrl}/api/admin/services/curate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ updates: enrichedUpdates }),
         });
-      } catch {}
+
+        if (!backendRes.ok) {
+          const errText = await backendRes.text().catch(() => "");
+          console.error("[Provider Curate API] Backend approve/reject error:", backendRes.status, errText);
+          return NextResponse.json(
+            { error: `Backend save failed (${backendRes.status}): ${errText}` },
+            { status: backendRes.status }
+          );
+        }
+      } catch (err: any) {
+        console.error("[Provider Curate API] Backend fetch error:", err);
+        return NextResponse.json(
+          { error: `Failed to connect to backend: ${err.message}` },
+          { status: 502 }
+        );
+      }
 
       return NextResponse.json({
         success: true,
@@ -90,14 +115,29 @@ export async function POST(request: Request) {
     list.unshift(newSubmission);
     writeSubmissions(list);
 
-    // Forward to Go backend if reachable
+    // Forward to Go backend
     try {
-      await fetch("http://localhost:8080/api/provider/services/curate", {
+      const backendRes = await fetch(`${backendBaseUrl}/api/provider/services/curate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-    } catch {}
+
+      if (!backendRes.ok) {
+        const errText = await backendRes.text().catch(() => "");
+        console.error("[Provider Curate API] Backend save error:", backendRes.status, errText);
+        return NextResponse.json(
+          { error: `Backend save failed (${backendRes.status}): ${errText}` },
+          { status: backendRes.status }
+        );
+      }
+    } catch (err: any) {
+      console.error("[Provider Curate API] Backend connection error:", err);
+      return NextResponse.json(
+        { error: `Failed to connect to backend: ${err.message}` },
+        { status: 502 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
