@@ -1083,6 +1083,10 @@ export function CatalogPicker({ catalogServices, rawServices: initialServices, p
       });
 
       await apiClient.post("/provider/services/curate", { providerName: providerKey || providerName, updates });
+      try {
+        const { clearServicesCache } = await import("@/lib/useServices");
+        clearServicesCache();
+      } catch (e) {}
       toast.success(`Verification submitted successfully! ${updates.length} working service(s) saved.`);
 
       // Clear draft working selections and localStorage

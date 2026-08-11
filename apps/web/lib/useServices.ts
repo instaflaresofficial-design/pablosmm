@@ -6,6 +6,11 @@ import type { NormalizedSmmService } from '@/types/smm';
 let cache: { services: NormalizedSmmService[] } | null = null;
 let inflight: Promise<{ services: NormalizedSmmService[] }> | null = null;
 
+export function clearServicesCache() {
+  cache = null;
+  inflight = null;
+}
+
 export function useNormalizedServices() {
   const [services, setServices] = useState<NormalizedSmmService[]>(cache?.services || []);
   const [loading, setLoading] = useState<boolean>(!cache);
