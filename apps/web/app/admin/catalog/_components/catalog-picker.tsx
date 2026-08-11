@@ -524,35 +524,39 @@ export function CatalogPicker({ catalogServices, rawServices: initialServices, p
   // Strict helper to match category types (followers, likes, views, etc.)
   const matchesCategoryTypeStrict = (text: string, categoryType: string): boolean => {
     const t = text.toLowerCase();
+
+    const hasFollowerKw = /\bfollowers?\b|\bsubscribers?\b|\bmembers?\b|\bfans?\b/.test(t);
+    const hasLikeKw = /\blikes?\b|\bupvotes?\b|\bhearts?\b|\bdislikes?\b/.test(t);
+    const hasViewKw = /\bviews?\b|\bimpressions?\b|\bwatch\s*time\b|\bstreams?\b|\bplays?\b/.test(t);
+    const hasCommentKw = /\bcomments?\b|\breplies?\b|\breply\b/.test(t);
+    const hasShareKw = /\bshares?\b|\bretweets?\b|\bforwards?\b|\breposts?\b/.test(t);
+
     if (categoryType === "followers") {
-      return /\bfollower|\bsubscriber|\bmember|\bfan/.test(t);
+      return hasFollowerKw;
     }
     if (categoryType === "likes") {
-      return /\blike|\bupvote|\bheart|\bdislike/.test(t);
+      return hasLikeKw && !hasFollowerKw;
     }
     if (categoryType === "views") {
-      return /\bview|\bimpression|\bwatch\s*time|\bstream|\bplay|\breel|\bhours?\b/.test(t);
+      return hasViewKw && !hasLikeKw && !hasFollowerKw && !hasCommentKw;
     }
     if (categoryType === "comments") {
-      return /\bcomment|\breply|\breplies/.test(t);
+      return hasCommentKw;
     }
-    if (categoryType === "shares") {
-      return /\bshare|\bretweet|\bforward|\brepost/.test(t);
-    }
-    if (categoryType === "repost") {
-      return /\brepost|\bre-post|\bshare|\bretweet|\bforward/.test(t);
+    if (categoryType === "shares" || categoryType === "repost") {
+      return hasShareKw;
     }
     if (categoryType === "votes") {
-      return /\bvote|\bpoll/.test(t);
+      return /\bvotes?\b|\bpolls?\b/.test(t);
     }
     if (categoryType === "reactions") {
-      return /\breaction|\bemote|\bemoji/.test(t);
+      return /\breactions?\b|\bemotes?\b|\bemojis?\b/.test(t);
     }
     if (categoryType === "saves") {
-      return /\bsave|\bbookmark|\bfavorite/.test(t);
+      return /\bsaves?\b|\bbookmarks?\b|\bfavorites?\b/.test(t);
     }
     if (categoryType === "mentions") {
-      return /\bmention/.test(t);
+      return /\bmentions?\b/.test(t);
     }
     return false;
   };
