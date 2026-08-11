@@ -65,11 +65,22 @@ function matchesVariantFilter(s: NormalizedSmmService, variant: string): boolean
   }
   if (v === 'reel') {
     if (isDashboardSvc) return false;
-    return text.includes('reel') || text.includes('video') || text.includes('igtv') || (!text.includes('story') && !text.includes('comment'));
+    const isExplicitPostSvc = (nameCat.includes('photo') || nameCat.includes('post view') || nameCat.includes('posts')) && !nameCat.includes('reel') && !nameCat.includes('video') && !nameCat.includes('igtv');
+    if (isExplicitPostSvc) return false;
+
+    const hasReelVideoInTitle = nameCat.includes('reel') || nameCat.includes('video') || nameCat.includes('igtv') || nameCat.includes('stream');
+    if (hasReelVideoInTitle) return true;
+
+    if (nameCat.includes('impression')) return false;
+
+    return (text.includes('reel') || text.includes('video') || text.includes('igtv')) && !nameCat.includes('photo');
   }
   if (v === 'post') {
     if (isDashboardSvc) return false;
-    return text.includes('post') || text.includes('photo');
+    const hasReelVideoInTitle = nameCat.includes('reel') || nameCat.includes('video') || nameCat.includes('igtv');
+    if (hasReelVideoInTitle && !nameCat.includes('post')) return false;
+
+    return text.includes('post') || text.includes('photo') || nameCat.includes('impression');
   }
   if (v === 'comments' || v === 'comment') {
     return text.includes('comment');
