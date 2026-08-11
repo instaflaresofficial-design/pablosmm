@@ -130,14 +130,16 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
     if (!isEditing) setEditingValue(String(quantity));
   }, [quantity, isEditing]);
 
+  const totalPriceInr = quantity * pricePerUnit; // pricePerUnit is provided in INR per unit
+
   // Keep budget input in sync with quantity when not editing budget
   useEffect(() => {
     if (mode === 'amount' && !budgetEditing) {
-      const nActive = convert(totalPriceNumberUsd);
-      setBudgetValue(String(Math.round(nActive)));
+      const activeAmt = convert(totalPriceInr);
+      const formattedAmt = currency === 'INR' ? Math.round(activeAmt) : parseFloat(activeAmt.toFixed(2));
+      setBudgetValue(String(formattedAmt));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, budgetEditing, quantity, pricePerUnit, currency]);
+  }, [mode, budgetEditing, quantity, pricePerUnit, currency, convert, totalPriceInr]);
 
   // --- LOGARITHMIC SLIDER MAPPING ---
   // The HTML range slider goes from 0 to 1000 for smooth precision.
@@ -202,37 +204,29 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
     onChange?.(quantity);
   }, [quantity]);
 
-  const totalPriceNumberUsd = quantity * pricePerUnit; // pricePerUnit provided in USD per unit
-  
   useEffect(() => {
-    onBudgetChange?.(totalPriceNumberUsd);
-  }, [totalPriceNumberUsd]);
+    onBudgetChange?.(totalPriceInr);
+  }, [totalPriceInr]);
 
-  const totalPriceCompact = formatMoneyDirectCompact(totalPriceNumberUsd);
   const isFixed = min === max;
   const currencySymbol = currency === 'INR' ? '₹' : '$';
 
-  // When range changes and we are in amount mode, recompute quantity from budget
-  useEffect(() => {
-    if (mode === 'amount') {
-      const nActive = parseFloat(budgetValue || '0');
-      const budgetUsd = convertToUsd(nActive);
-      const q = Math.floor(budgetUsd / pricePerUnit);
-      const clamped = Math.max(min, Math.min(max, isFinite(q) ? q : min));
-      setQuantity(clamped);
-      onChange?.(clamped);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [min, max, pricePerUnit]);
+  const getQuantityFromBudget = React.useCallback((valStr: string): number => {
+    const nActive = parseFloat(valStr || '0');
+    if (isNaN(nActive) || nActive <= 0 || pricePerUnit <= 0) return min;
+    const budgetInr = currency === 'INR' ? nActive : nActive * usdToInr;
+    const rawQ = Math.floor(budgetInr / pricePerUnit);
+    return Math.max(min, Math.min(max, isFinite(rawQ) ? rawQ : min));
+  }, [currency, usdToInr, pricePerUnit, min, max]);
 
   // Compute preview quantity for current budget while typing in amount mode
   const previewQuantity = React.useMemo(() => {
     if (mode !== 'amount') return quantity;
-    const nActive = budgetEditing ? parseFloat(budgetValue || '0') : convert(totalPriceNumberUsd);
-    const budgetUsd = budgetEditing ? convertToUsd(nActive) : totalPriceNumberUsd;
-    const q = Math.floor((isFinite(budgetUsd) && pricePerUnit > 0) ? budgetUsd / pricePerUnit : min);
-    return Math.max(min, Math.min(max, isFinite(q) ? q : min));
-  }, [mode, budgetEditing, budgetValue, convert, totalPriceNumberUsd, currency, usdToInr, pricePerUnit, min, max, quantity]);
+    if (budgetEditing) {
+      return getQuantityFromBudget(budgetValue);
+    }
+    return quantity;
+  }, [mode, budgetEditing, budgetValue, getQuantityFromBudget, quantity]);
 
   return (
     <div className="slider-container">
@@ -294,22 +288,25 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
                 type="text"
                 name="budget"
                 className="value"
-                value={budgetEditing ? budgetValue : String(Math.round(convert(totalPriceNumberUsd)))}
+                value={budgetEditing ? budgetValue : (currency === 'INR' ? String(Math.round(convert(totalPriceInr))) : convert(totalPriceInr).toFixed(2))}
                 onFocus={() => {
                   setBudgetEditing(true);
-                  setBudgetValue(String(Math.round(convert(totalPriceNumberUsd))));
+                  const activeAmt = convert(totalPriceInr);
+                  setBudgetValue(currency === 'INR' ? String(Math.round(activeAmt)) : activeAmt.toFixed(2));
                 }}
                 onChange={(e) => {
-                  const digitsOnly = e.target.value.replace(/[^\d]/g, "");
-                  setBudgetValue(digitsOnly);
+                  const raw = e.target.value.replace(/[^\d.]/g, "");
+                  setBudgetValue(raw);
+                  const newQty = getQuantityFromBudget(raw);
+                  const snapped = snapToStep(newQty);
+                  setQuantity(snapped);
+                  onChange?.(snapped);
                 }}
                 onBlur={() => {
-                  const nActive = parseFloat(budgetValue || '0');
-                  const budgetUsd = convertToUsd(nActive);
-                  const q = Math.floor(budgetUsd / pricePerUnit);
-                  const clamped = Math.max(min, Math.min(max, isFinite(q) ? q : min));
-                  setQuantity(clamped);
-                  onChange?.(clamped);
+                  const newQty = getQuantityFromBudget(budgetValue);
+                  const snapped = snapToStep(newQty);
+                  setQuantity(snapped);
+                  onChange?.(snapped);
                   setBudgetEditing(false);
                 }}
                 onKeyDown={(e) => {
@@ -343,7 +340,7 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
           {mode !== 'amount' && (
             <div className="slider-info">
               <span className="label">PRICE</span>
-              <span className="value">{formatMoneyDirect(totalPriceNumberUsd)}</span>
+              <span className="value">{formatMoneyDirect(totalPriceInr)}</span>
             </div>
           )}
           {mode === 'amount' && (
@@ -397,7 +394,7 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
             aria-live="polite"
           >
             {ordering ? 'Ordering…' : (
-              <span>place order for <span className="order-amount">{formatMoneyDirect(totalPriceNumberUsd)}</span></span>
+              <span>place order for <span className="order-amount">{formatMoneyDirect(totalPriceInr)}</span></span>
             )}
           </button>
         </div>
