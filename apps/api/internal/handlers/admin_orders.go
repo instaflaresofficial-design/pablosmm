@@ -138,15 +138,15 @@ func (h *Handler) RefundOrder(w http.ResponseWriter, r *http.Request) {
 	// 5. Provider Cancellation (Only on Full Refund/Cancellation)
 	// Only attempt if fully refunded and status changed to refunded
 	if newStatus == "refunded" && providerOrderID != "" {
-		go func(pID string) {
-			log.Printf("Attempting to cancel Order #%s on provider side...", pID)
-			resp, err := h.smm.CancelOrder(pID)
+		go func(pKey, pID string) {
+			log.Printf("Attempting to cancel Order #%s on provider %s side...", pID, pKey)
+			resp, err := h.smm.CancelOrder(pKey, pID)
 			if err != nil {
-				log.Printf("Provider cancel failed for #%s: %v", pID, err)
+				log.Printf("Provider cancel failed for %s #%s: %v", pKey, pID, err)
 			} else {
-				log.Printf("Provider cancel response for #%s: %v", pID, resp)
+				log.Printf("Provider cancel response for %s #%s: %v", pKey, pID, resp)
 			}
-		}(providerOrderID)
+		}(orderRow.ProviderKey, providerOrderID)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

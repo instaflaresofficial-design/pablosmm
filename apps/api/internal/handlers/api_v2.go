@@ -88,8 +88,6 @@ func (h *Handler) SmmApiV2(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		fxRate := h.fx.GetUsdToInr()
-
 		type ApiServiceOutput struct {
 			Service  string `json:"service"`
 			Name     string `json:"name"`
@@ -106,7 +104,7 @@ func (h *Handler) SmmApiV2(w http.ResponseWriter, r *http.Request) {
 		var res []ApiServiceOutput
 		for _, s := range services {
 			// SMM panels expect price corresponding to wallet. Wallet is INR based. Let's return price in INR.
-			rateINR := s.RatePer1000 * fxRate
+			rateINR := s.RatePer1000
 			
 			name := s.DisplayName
 			if name == "" {
@@ -230,8 +228,7 @@ func (h *Handler) SmmApiV2(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		
-		fxRate := h.fx.GetUsdToInr()
-		rateINR := selectedService.RatePer1000 * fxRate
+		rateINR := selectedService.RatePer1000
 		totalINR := (rateINR * float64(quantity)) / 1000.0
 		amountCents := int(totalINR * 100) 
 		if amountCents <= 0 { amountCents = 1 }
@@ -280,7 +277,7 @@ func (h *Handler) SmmApiV2(w http.ResponseWriter, r *http.Request) {
 		
 		tx.Commit(context.Background())
 		
-		resp, placeErr := h.smm.PlaceOrder(selectedService.SourceServiceID, quantityStr, link)
+		resp, placeErr := h.smm.PlaceOrder(selectedService.Source, selectedService.SourceServiceID, quantityStr, link)
 		var providerError string
 		if placeErr != nil {
 			providerError = placeErr.Error()

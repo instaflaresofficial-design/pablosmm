@@ -32,6 +32,7 @@ import {
   RotateCcw,
   Sparkles,
   FileText,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/admin/utils";
 import { Button } from "@/components/admin/ui/button";
@@ -81,6 +82,11 @@ export interface ServiceItem {
 }
 
 // 1. Platforms Config
+function formatInrRate(rate: number): string {
+  if (typeof rate !== "number" || isNaN(rate)) return "₹0.00";
+  return `₹${rate.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+}
+
 const PLATFORMS = [
   { id: "instagram", name: "Instagram", synonyms: ["instagram", "ig"], icon: Instagram, color: "text-pink-500", bg: "bg-pink-500/10" },
   { id: "youtube", name: "YouTube", synonyms: ["youtube", "yt"], icon: Youtube, color: "text-red-600", bg: "bg-red-600/10" },
@@ -387,6 +393,8 @@ export function ProviderVerificationPortal({
   const [selectedType, setSelectedType] = React.useState<string>("all");
   const [selectedVariant, setSelectedVariant] = React.useState<string>("all");
   const [searchQuery, setSearchQuery] = React.useState<string>("");
+  const [quickSearchInput, setQuickSearchInput] = React.useState<string>("");
+  const [showOnlyWorking, setShowOnlyWorking] = React.useState<boolean>(false);
   const [services, setServices] = React.useState<ServiceItem[]>(initialServices);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
@@ -486,16 +494,36 @@ export function ProviderVerificationPortal({
       // 4. Keyword Search
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
-        return (
+        const matchesQuery =
           sName.includes(query) ||
           s.sourceServiceId.includes(query) ||
-          sCategory.includes(query)
-        );
+          sCategory.includes(query);
+        if (!matchesQuery) return false;
+      }
+
+      // 5. Show Only Working Services Filter
+      if (showOnlyWorking) {
+        const id = s.id || s.sourceServiceId;
+        return !!workingMap[id];
       }
 
       return true;
     });
-  }, [services, selectedPlatform, selectedType, selectedVariant, searchQuery, currentPlatformObj, currentTaxonomy]);
+  }, [services, selectedPlatform, selectedType, selectedVariant, searchQuery, showOnlyWorking, workingMap, currentPlatformObj, currentTaxonomy]);
+
+  // Global Quick Search Results across all 300+ items
+  const quickSearchResults = React.useMemo(() => {
+    if (!quickSearchInput.trim()) return [];
+    const query = quickSearchInput.toLowerCase().trim();
+    return services
+      .filter((s) => {
+        const id = (s.sourceServiceId || s.id || "").toLowerCase();
+        const name = (s.name || s.providerName || "").toLowerCase();
+        const cat = (s.rawProviderCategory || s.category || "").toLowerCase();
+        return id.includes(query) || name.includes(query) || cat.includes(query);
+      })
+      .slice(0, 15);
+  }, [services, quickSearchInput]);
 
   // Group services into categories in exact raw TopSMM order
   const { categoryOrder, groupedCandidateServices } = React.useMemo(() => {
@@ -669,7 +697,7 @@ export function ProviderVerificationPortal({
         };
       });
 
-      await apiClient.post("/admin/services/curate", { updates });
+      await apiClient.post("/provider/services/curate", { updates });
 
       // Reset submitted IDs from modified tracking
       setModifiedIds((prev) => {
@@ -854,6 +882,118 @@ export function ProviderVerificationPortal({
             </div>
           </div>
 
+          {/* Quick Search & Add Working Service Bar */}
+          <div className="bg-gradient-to-r from-primary/10 via-card to-purple-500/10 border-2 border-primary/20 rounded-xl p-4 space-y-3 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" />
+                <h4 className="text-xs sm:text-sm font-bold text-foreground">
+                  Quick Add Working Service by ID / Title
+                </h4>
+                <Badge variant="outline" className="text-[10px] font-mono border-primary/30">
+                  {services.length} Total Catalog
+                </Badge>
+              </div>
+
+              <Button
+                size="sm"
+                variant={showOnlyWorking ? "default" : "outline"}
+                onClick={() => setShowOnlyWorking(!showOnlyWorking)}
+                className="gap-1.5 text-xs font-semibold self-start sm:self-auto shrink-0"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {showOnlyWorking ? "Showing Marked Working Only" : "Show Marked Working Only"}
+              </Button>
+            </div>
+
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-3 text-muted-foreground" />
+              <Input
+                placeholder="Type Service ID (e.g. 1540) or title keyword (e.g. 'Refill Followers') to search 300+ services & add instantly..."
+                value={quickSearchInput}
+                onChange={(e) => setQuickSearchInput(e.target.value)}
+                className="pl-9 pr-24 h-10 text-xs bg-background/90 font-medium rounded-lg border-primary/30 focus:border-primary"
+              />
+              {quickSearchInput && (
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  onClick={() => setQuickSearchInput("")}
+                  className="absolute right-2 top-1.5 h-7 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Clear Search
+                </Button>
+              )}
+            </div>
+
+            {/* Quick Search Dropdown / Instant Results */}
+            {quickSearchInput.trim().length > 0 && (
+              <div className="mt-2 space-y-2 max-h-72 overflow-y-auto bg-card border-2 border-primary/30 rounded-xl p-3 shadow-xl divide-y divide-border/60">
+                {quickSearchResults.length === 0 ? (
+                  <div className="text-xs text-muted-foreground py-3 text-center">
+                    No matching services found for "{quickSearchInput}". Try typing a numeric Service ID or keyword.
+                  </div>
+                ) : (
+                  quickSearchResults.map((svc) => {
+                    const id = svc.id || svc.sourceServiceId;
+                    const isWorking = !!workingMap[id];
+                    return (
+                      <div key={id} className="pt-2.5 first:pt-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                        <div className="space-y-0.5 min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded text-[11px]">
+                              #{svc.sourceServiceId || id}
+                            </span>
+                            <span className="font-semibold text-foreground truncate max-w-md">
+                              {svc.name || svc.providerName}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
+                            <span>Platform: <strong className="capitalize">{svc.platform}</strong></span>
+                            <span>•</span>
+                            <span>Cat: {svc.rawProviderCategory || svc.category}</span>
+                            <span>•</span>
+                            <span>Rate: <strong>{formatInrRate(svc.ratePer1000)}</strong>/1k</span>
+                            <span>•</span>
+                            <span>Min/Max: {svc.min} / {svc.max}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                          <Button
+                            size="xs"
+                            variant={isWorking ? "outline" : "default"}
+                            onClick={() => {
+                              toggleWorking(id);
+                              if (!isWorking) {
+                                setActiveEditingService(svc);
+                              }
+                              toast.success(
+                                isWorking
+                                  ? `Unmarked Service #${svc.sourceServiceId || id}`
+                                  : `Marked Service #${svc.sourceServiceId || id} as WORKING!`,
+                                { description: svc.name }
+                              );
+                            }}
+                            className={cn(
+                              "gap-1 font-bold",
+                              isWorking
+                                ? "border-emerald-500 text-emerald-500 hover:bg-emerald-500/10"
+                                : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                            )}
+                          >
+                            {isWorking ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                            {isWorking ? "Marked Working ✅" : "+ Mark Working & Add"}
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Categories Accordion */}
           <div className="space-y-4">
             {categoryOrder.length === 0 ? (
@@ -961,7 +1101,7 @@ export function ProviderVerificationPortal({
                                       #{service.sourceServiceId}
                                     </Badge>
                                     <Badge className="bg-emerald-600 text-white font-mono text-[11px] font-bold">
-                                      {formatMoney(service.ratePer1000)} / 1k
+                                      {formatInrRate(service.ratePer1000)} / 1k
                                     </Badge>
                                   </div>
 
@@ -1070,7 +1210,7 @@ export function ProviderVerificationPortal({
               <div className="font-semibold text-xs text-foreground flex items-center justify-between border-b pb-2">
                 <span className="text-muted-foreground uppercase text-[10px] tracking-wider">Service Overview</span>
                 <span className="font-mono text-emerald-600 font-bold text-xs">
-                  {formatMoney(activeEditingService.ratePer1000)} / 1,000
+                  {formatInrRate(activeEditingService.ratePer1000)} / 1,000
                 </span>
               </div>
 

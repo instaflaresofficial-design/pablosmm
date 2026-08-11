@@ -12,7 +12,6 @@ import (
 	"pablosmm/backend/internal/config"
 	"pablosmm/backend/internal/db"
 	"pablosmm/backend/internal/server"
-	"pablosmm/backend/internal/service/fx"
 	"pablosmm/backend/internal/service/smm"
 	"pablosmm/backend/internal/service/syncer"
 
@@ -21,34 +20,24 @@ import (
 
 func main() {
 	log.Println("Starting server application...")
-	// Load .env file
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, using system environment variables")
 	}
 
 	cfg := config.Load()
 
-	// Initialize Database
-	db, err := db.New(cfg)
+	database, err := db.New(cfg)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer db.Close()
+	defer database.Close()
 
-	// Services
-	fxService := fx.New(85.0) // Fallback rate
-	smmService := smm.New(db, cfg, fxService)
-	syncerService := syncer.New(db, smmService)
-
-	// Start Background Tasks
-	// FX updates every hour (handled internally in StartUpdateLoop, actually cache timeout is 5m in FX service)
-	go fxService.StartUpdateLoop()
-	// Order Sync updates every 2 minutes
+	smmService := smm.New(database, cfg)
+	syncerService := syncer.New(database, smmService)
 	syncerService.Start(context.Background())
 
-	srv := server.New(cfg)
+	srv := server.New(cfg, database, smmService)
 
-	// Graceful shutdown setup
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 

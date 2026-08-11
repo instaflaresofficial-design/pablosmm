@@ -16,6 +16,7 @@ import ServiceCard from '@/components/order/ServiceCard';
 import FollowerPreview from '@/components/preview/FollowerPreview';
 import ServiceInfo from '@/components/order/ServiceInfo';
 import type { NormalizedSmmService, Platform, ServiceType, Variant } from '@/types/smm';
+import { groupServices } from '@/lib/serviceGrouping';
 
 const mockServices: NormalizedSmmService[] = [
   {
@@ -238,9 +239,9 @@ export default function PhoneMockup({
                     <button className={`tab-btn ${activeCat === 'premium' ? 'active' : ''}`}>Premium</button>
                   </div>
                   <div className="services-list">
-                    {filteredServices.map((s, idx) => (
-                      <ServiceCard key={s.id} service={s} quantity={quantity} mode="qty"
-                        budgetUsd={0} link={link} isSelected={idx === selIndex}
+                    {groupServices(filteredServices).map((group, idx) => (
+                      <ServiceCard key={group.id} group={group} quantity={quantity} mode="qty"
+                        budgetUsd={0} link={link} selectedServiceId={idx === selIndex ? group.variants[0].id : undefined}
                         onSelect={() => {}} onViewDetails={() => {}} />
                     ))}
                   </div>

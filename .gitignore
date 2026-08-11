@@ -15,8 +15,8 @@ build/
 
 # ── Environment files ────────────────────────────────────────
 .env
-.env.local
-.env*.local
+.env.*
+!.env.example
 
 # ── OS / Editor ──────────────────────────────────────────────
 .DS_Store
@@ -39,6 +39,17 @@ next-env.d.ts
 *.exe
 *.log
 apps/api/server
+apps/api/*.db
+pablosmm.db
+
+# ── Local dev scratch (see scripts/README.md) ────────────────
+scripts/dev/scratch/output/
+catalog_picker_dump.txt
+picker_lines.jsonl
+wowsmm_full_raw.json
+wowsmm_web_services.html
+grep_step_676.txt
+temp_picker.tsx
 
 # ── Data files (fetched, not source) ─────────────────────────
 services.json

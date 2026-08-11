@@ -31,7 +31,7 @@ AND (sqlc.narg('status_filter')::text IS NULL OR
 ORDER BY o.created_at DESC;
 
 -- name: GetOrderForCancel :one
-SELECT status, amount_cents, COALESCE(provider_order_id, '')::text as provider_order_id 
+SELECT status, amount_cents, COALESCE(provider_order_id, '')::text as provider_order_id, COALESCE(provider_key, '')::text as provider_key
 FROM orders 
 WHERE id=$1 AND user_id=$2 
 FOR UPDATE;
@@ -40,7 +40,7 @@ FOR UPDATE;
 UPDATE orders SET status='canceled' WHERE id=$1;
 
 -- name: GetOrderForRefundAdmin :one
-SELECT status, amount_cents, COALESCE(refunded_amount, 0)::int as refunded_amount, user_id 
+SELECT status, amount_cents, COALESCE(refunded_amount, 0)::int as refunded_amount, user_id, COALESCE(provider_key, '')::text as provider_key 
 FROM orders WHERE id = $1 FOR UPDATE;
 
 -- name: UpdateOrderRefundAdmin :one
@@ -79,8 +79,8 @@ AND (sqlc.narg('user_id')::int IS NULL OR o.user_id = sqlc.narg('user_id'))
 ORDER BY o.created_at DESC;
 
 -- name: InsertOrder :one
-INSERT INTO orders (user_id, service_id, amount_cents, quantity, link, status, provider_order_id, provider_resp, refills_remaining)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO orders (user_id, service_id, amount_cents, quantity, link, status, provider_order_id, provider_resp, refills_remaining, provider_key)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING id;
 
 -- name: DeleteOrder :exec

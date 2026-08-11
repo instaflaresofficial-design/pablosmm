@@ -17,34 +17,10 @@ import { useMetadata } from '@/lib/useMetadata';
 import { getApiBaseUrl } from '@/lib/config';
 import { createPortal } from 'react-dom';
 import { getServiceTags } from '@/lib/serviceTags';
+import { groupServices } from '@/lib/serviceGrouping';
+import { SlidersHorizontal } from 'lucide-react';
 
-const GEO_OPTIONS = [
-  { value: 'All', label: 'All Regions' },
-  { value: 'Indian', label: 'Indian' },
-  { value: 'USA', label: 'USA' },
-  { value: 'Global', label: 'Global' },
-];
-
-const SPEED_OPTIONS = [
-  { value: 'All', label: 'All Speeds' },
-  { value: 'Instant', label: 'Instant' },
-  { value: 'Fast', label: 'Fast' },
-  { value: 'Normal Speed', label: 'Normal Speed' },
-];
-
-const REFILL_OPTIONS = [
-  { value: 'All', label: 'All Refills' },
-  { value: 'Available', label: 'Available' },
-  { value: 'No Refill', label: 'No Refill' },
-];
-
-const DROP_OPTIONS = [
-  { value: 'All', label: 'All Drop Types' },
-  { value: 'Non Drop', label: 'Non Drop' },
-  { value: 'May Drop', label: 'May Drop' },
-];
-
-type FilterType = 'geo' | 'speed' | 'refill' | 'drop' | 'all' | null;
+type FilterType = 'all' | null;
 
 // Hook that reads URL search params. Must be used within a <Suspense> boundary in Next.js app router.
 function useSelectionFromQuery() {
@@ -58,12 +34,56 @@ function useSelectionFromQuery() {
 
 type Category = 'recommended' | 'cheapest' | 'premium';
 
+function parseAvgMins(s: any): number {
+  const raw = s?.averageTime ?? s?.average_time;
+  if (raw === undefined || raw === null || raw === '' || raw === 'N/A') return 9999;
+  const num = typeof raw === 'number' ? raw : parseFloat(String(raw));
+  return isNaN(num) || num <= 0 ? 9999 : num;
+}
+
+function computeBestRatedScore(s: any): number {
+  if (!s) return 0;
+  const { tags, drop, refill, speed } = getServiceTags(s);
+  let score = 0;
+
+  // 1. Drop / Stability Score
+  if (drop === 'Non Drop') score += 50;
+  else if (drop === 'Low Drop') score += 30;
+  else if (drop === 'High Drop') score -= 50;
+
+  // 2. Refill Score
+  const tagList = tags || [];
+  const refillTagLabel = tagList.find((t: any) => t.type === 'refill')?.label || '';
+  if (refillTagLabel.includes('Lifetime') || refillTagLabel.includes('365')) score += 50;
+  else if (refillTagLabel.includes('Days')) score += 35;
+  else if (refill === 'Available') score += 25;
+  else score -= 30;
+
+  // 3. Speed Score
+  if (speed === 'Instant') score += 30;
+  else if (speed === 'Fast') score += 20;
+  else if (speed === 'Normal Speed') score += 10;
+  else if (speed === 'Slow Speed') score -= 10;
+  else if (speed === 'Unstable') score -= 40;
+
+  // 4. Average Time bonus
+  const avgMins = parseAvgMins(s);
+  if (avgMins < 9999) {
+    if (avgMins <= 10) score += 20;
+    else if (avgMins <= 60) score += 15;
+    else if (avgMins <= 360) score += 10;
+  }
+
+  return score;
+}
+
 // Isolated content placed under Suspense to satisfy useSearchParams requirements during prerender/hydration
 const SummaryContent = () => {
   const { platform, service, variant, link } = useSelectionFromQuery();
   const { services: all, loading } = useNormalizedServices();
   const { metadata, loading: metaLoading } = useMetadata(link, service);
   const [quantity, setQuantity] = useState<number>(1000);
+  const deferredQuantity = React.useDeferredValue(quantity);
   const [search, setSearch] = useState<string>('');
   const [category, setCategory] = useState<Category>('recommended');
   const [sliderMode, setSliderMode] = useState<'qty' | 'amount'>('qty');
@@ -72,22 +92,21 @@ const SummaryContent = () => {
   const [comments, setComments] = useState<string[]>([]);
   const [customInput, setCustomInput] = useState<string>('');
   
-  // Modal state for Service Details
-  const [selectedService, setSelectedService] = useState<NormalizedSmmService | null>(null);
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
+  
+  // State for Service Details Inline Panel
+  const [viewingServiceDetails, setViewingServiceDetails] = useState<NormalizedSmmService | null>(null);
 
   // Filter Drawer State
   const [activeDrawer, setActiveDrawer] = useState<FilterType>(null);
-  const [geoFilter, setGeoFilter] = useState('All');
-  const [speedFilter, setSpeedFilter] = useState('All');
-  const [refillFilter, setRefillFilter] = useState('All');
-  const [dropFilter, setDropFilter] = useState('All');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [mounted, setMounted] = useState(false);
 
   React.useEffect(() => {
     setMounted(true);
   }, []);
 
-  const filtered = useMemo(() => {
+  const { baseList, availableTagsByType, allSortedTags } = useMemo(() => {
     const bySearch = search.trim().toLowerCase();
     let list;
     if (bySearch) {
@@ -111,50 +130,198 @@ const SummaryContent = () => {
       });
     }
 
-    // Apply Drawer Filters
-    if (geoFilter !== 'All' || speedFilter !== 'All' || refillFilter !== 'All' || dropFilter !== 'All') {
+    const tagCounts = new Map<string, { count: number, type: string }>();
+    (list || []).forEach(s => {
+      const { tags } = getServiceTags(s);
+      (tags || []).forEach(t => {
+        if (!t || !t.label) return;
+        const existing = tagCounts.get(t.label);
+        if (existing) {
+          existing.count++;
+        } else {
+          tagCounts.set(t.label, { count: 1, type: t.type });
+        }
+      });
+    });
+
+    const sortedTags = Array.from(tagCounts.entries())
+      .sort((a, b) => b[1].count - a[1].count)
+      .map(entry => ({ label: entry[0], type: entry[1].type, count: entry[1].count }));
+
+    const byType = {
+      refill: sortedTags.filter(t => t.type === 'refill').map(t => t.label),
+      drop: sortedTags.filter(t => t.type === 'drop').map(t => t.label),
+      speed: sortedTags.filter(t => t.type === 'speed').map(t => t.label),
+      geo: sortedTags.filter(t => t.type === 'geo').map(t => t.label),
+    };
+
+    return { baseList: list || [], availableTagsByType: byType, allSortedTags: sortedTags.map(t => t.label) };
+  }, [all, platform, service, variant, search]);
+
+  const filtered = useMemo(() => {
+    let list = baseList || [];
+
+    if (selectedTags.length > 0) {
+      const selectedByType = {
+        refill: selectedTags.filter(t => (availableTagsByType?.refill || []).includes(t)),
+        drop: selectedTags.filter(t => (availableTagsByType?.drop || []).includes(t)),
+        speed: selectedTags.filter(t => (availableTagsByType?.speed || []).includes(t)),
+        geo: selectedTags.filter(t => (availableTagsByType?.geo || []).includes(t)),
+      };
+
       list = list.filter(s => {
-        const tags = getServiceTags(s);
-        if (geoFilter !== 'All' && tags.geo !== geoFilter) return false;
-        if (speedFilter !== 'All' && tags.speed !== speedFilter) return false;
-        if (refillFilter !== 'All' && tags.refill !== refillFilter) return false;
-        if (dropFilter !== 'All' && tags.drop !== dropFilter) return false;
-        return true;
+        const { tags } = getServiceTags(s);
+        const serviceTagLabels = (tags || []).map(t => t.label);
+
+        const matchRefill = selectedByType.refill.length === 0 || selectedByType.refill.some(t => serviceTagLabels.includes(t));
+        const matchDrop = selectedByType.drop.length === 0 || selectedByType.drop.some(t => serviceTagLabels.includes(t));
+        const matchSpeed = selectedByType.speed.length === 0 || selectedByType.speed.some(t => serviceTagLabels.includes(t));
+        const matchGeo = selectedByType.geo.length === 0 || selectedByType.geo.some(t => serviceTagLabels.includes(t));
+
+        return matchRefill && matchDrop && matchSpeed && matchGeo;
       });
     }
 
     const searched = list;
-    if (category === 'cheapest') return [...searched].sort((a, b) => a.ratePer1000 - b.ratePer1000);
-    if (category === 'premium') return [...searched].sort((a, b) => b.ratePer1000 - a.ratePer1000);
-    return [...searched].sort((a, b) => {
-      const refillScore = (Number(b.refill) - Number(a.refill)) * 100;
-      const priceScore = Math.sign((a.ratePer1000 - b.ratePer1000));
-      const timeA = a.averageTime ?? 9999; const timeB = b.averageTime ?? 9999;
-      return refillScore || priceScore || (timeA - timeB);
+
+    // Pre-calculate prices and percentiles for relative filtering
+    const sortedPrices = [...searched].map(s => s.ratePer1000).sort((a, b) => a - b);
+    const p33 = sortedPrices[Math.floor(sortedPrices.length * 0.33)] ?? 0;
+    const p66 = sortedPrices[Math.floor(sortedPrices.length * 0.66)] ?? Infinity;
+
+    if (category === 'cheapest') {
+      const cheapList = searched.filter(s => searched.length <= 3 || s.ratePer1000 <= p33);
+      return cheapList.sort((a, b) => a.ratePer1000 - b.ratePer1000);
+    }
+
+    if (category === 'premium') {
+      const premiumList = searched.filter(s => {
+        if (searched.length <= 3) return true;
+        const { tags } = getServiceTags(s);
+        const tagList = tags || [];
+        const isBest = tagList.find(t => t.type === 'drop')?.label === 'Non Drop' || tagList.find(t => t.type === 'refill')?.label !== 'No Refill';
+        const isCostly = s.ratePer1000 >= p66;
+        return isCostly && isBest;
+      });
+      const finalPremium = premiumList.length > 0 ? premiumList : searched.filter(s => s.ratePer1000 >= p66);
+      return (finalPremium.length > 0 ? finalPremium : searched).sort((a, b) => b.ratePer1000 - a.ratePer1000);
+    }
+
+    // Best Rated (recommended): Filter out High Drop / No Refill / Unstable services if better ones exist
+    const bestRatedList = searched.filter(s => {
+      if (searched.length <= 3) return true;
+      const { drop, refill, speed } = getServiceTags(s);
+      const isHighDrop = drop === 'High Drop';
+      const isNoRefill = refill === 'No Refill';
+      const isUnstable = speed === 'Unstable';
+      
+      // Keep service only if it is not High Drop or completely un-refillable and unstable
+      return !(isHighDrop || (isNoRefill && isUnstable));
     });
-  }, [all, platform, service, variant, search, category, geoFilter, speedFilter, refillFilter, dropFilter]);
 
-  const selected = filtered[Math.min(selIndex, Math.max(filtered.length - 1, 0))] || null;
-  const min = selected?.min || 50;
-  const max = selected?.max || 50000;
-  const pricePerUnit = (selected?.ratePer1000 || 0) / 1000;
+    const finalRecommended = bestRatedList.length > 0 ? bestRatedList : searched;
 
-  // Reset index when result set changes
-  React.useEffect(() => { setSelIndex(0); }, [platform, service, variant, category, search]);
+    return finalRecommended.sort((a, b) => {
+      const scoreA = computeBestRatedScore(a);
+      const scoreB = computeBestRatedScore(b);
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      
+      // Tie breaker 1: lower average time
+      const timeA = parseAvgMins(a);
+      const timeB = parseAvgMins(b);
+      if (timeA !== timeB) return timeA - timeB;
+
+      // Tie breaker 2: lower price
+      return a.ratePer1000 - b.ratePer1000;
+    });
+  }, [baseList, selectedTags, category, availableTagsByType]);
+
+  const groupedFiltered = useMemo(() => {
+    let groups = groupServices(filtered);
+    // Hide service groups where requested quantity exceeds the maximum supported capacity
+    groups = groups.filter((g) => deferredQuantity <= g.max);
+
+    const getMinPrice = (g: any) => {
+      if (!g.variants.length) return 0;
+      return Math.min(...g.variants.map((v: any) => v.sellPriceInr ?? v.service.ratePer1000));
+    };
+
+    if (category === 'premium') {
+      return [...groups].sort((a, b) => getMinPrice(b) - getMinPrice(a));
+    }
+    if (category === 'recommended') {
+      const getGroupBestScore = (g: any) => {
+        if (!g.variants.length) return 0;
+        return Math.max(...g.variants.map((v: any) => computeBestRatedScore(v.service)));
+      };
+      return [...groups].sort((a, b) => {
+        const scoreDiff = getGroupBestScore(b) - getGroupBestScore(a);
+        if (scoreDiff !== 0) return scoreDiff;
+        return getMinPrice(a) - getMinPrice(b);
+      });
+    }
+    // Default and 'cheapest': Sort strictly from lowest price to highest price
+    return [...groups].sort((a, b) => getMinPrice(a) - getMinPrice(b));
+  }, [filtered, deferredQuantity, category]);
+
+  const selectedGroup = useMemo(() => {
+    if (!selectedServiceId) return null;
+    return groupedFiltered.find(g => g.variants.some(v => v.id === selectedServiceId)) || null;
+  }, [groupedFiltered, selectedServiceId]);
+
+  const selectedService = useMemo(() => {
+    if (!selectedServiceId || !selectedGroup) return null;
+    return selectedGroup.variants.find(v => v.id === selectedServiceId)?.service || null;
+  }, [selectedServiceId, selectedGroup]);
+
+  const selectedVariantInfo = useMemo(() => {
+    if (!selectedServiceId || !selectedGroup) return null;
+    return selectedGroup.variants.find(v => v.id === selectedServiceId) || null;
+  }, [selectedServiceId, selectedGroup]);
+
+  // Preserve user selection when slider or filters change. Only default if current selection is invalid or filtered out.
+  React.useEffect(() => {
+    if (!groupedFiltered || groupedFiltered.length === 0) {
+      if (selectedServiceId !== null) setSelectedServiceId(null);
+      return;
+    }
+
+    const isCurrentSelectionValid = selectedServiceId && groupedFiltered.some(g => g.variants.some(v => v.id === selectedServiceId));
+
+    if (!isCurrentSelectionValid && selectedServiceId !== null) {
+      setSelectedServiceId(null);
+    }
+  }, [groupedFiltered, selectedServiceId]);
+
+  const min = useMemo(() => {
+    if (selectedGroup) return selectedGroup.min;
+    if (groupedFiltered.length === 0) return 50;
+    return Math.min(...groupedFiltered.map(g => g.min));
+  }, [selectedGroup, groupedFiltered]);
+
+  const max = useMemo(() => {
+    if (selectedGroup) return selectedGroup.max;
+    if (groupedFiltered.length === 0) return 50000;
+    return Math.max(...groupedFiltered.map(g => g.max));
+  }, [selectedGroup, groupedFiltered]);
+  
+  // Use explicit sellPriceInr from the mapped variant, otherwise fallback to wholesale rate
+  const activeSellPrice = selectedVariantInfo?.sellPriceInr ?? (selectedService?.ratePer1000 || 0);
+  const pricePerUnit = activeSellPrice / 1000;
 
   // Order state
   const [ordering, setOrdering] = useState(false);
   const [orderStatus, setOrderStatus] = useState<string | null>(null);
 
   const showComments = useMemo(() => {
-    if (!selected) return false;
-    const name = (selected.displayName || selected.providerName || '').toLowerCase();
-    const cat = (selected.category || '').toLowerCase();
+    if (!selectedService) return false;
+    const name = (selectedService.displayName || selectedService.providerName || '').toLowerCase();
+    const cat = (selectedService.category || '').toLowerCase();
     return service === 'comments' && (name.includes('custom') || cat.includes('custom'));
-  }, [selected, service]);
+  }, [selectedService, service]);
 
   async function handleOrder() {
-    if (!selected) return setOrderStatus('No service selected');
+    if (!selectedService) return setOrderStatus('No service selected');
 
     if (showComments) {
       if (comments.length === 0) {
@@ -167,41 +334,53 @@ const SummaryContent = () => {
       }
     }
 
-    if (selected.customInputRequired && !customInput.trim()) {
-      toast.error(`Please enter ${selected.customInputLabel || 'required input / answer'}`);
+    if (selectedService.customInputRequired && !customInput.trim()) {
+      toast.error(`Please enter ${selectedService.customInputLabel || 'required input / answer'}`);
       return;
     }
 
     setConfirmOpen(true);
   }
 
+  const [savedScroll, setSavedScroll] = useState<number>(0);
+
   // Wrapper for list card click
   const handleViewDetails = (service: NormalizedSmmService) => {
-    const idx = filtered.findIndex((s) => s.id === service.id);
-    if (idx !== -1) setSelIndex(idx);
-    setSelectedService(service);
+    setSavedScroll(window.scrollY);
+    setViewingServiceDetails(service);
+    window.scrollTo(0, 0);
   };
 
   const handleSelectService = (service: NormalizedSmmService) => {
-    const idx = filtered.findIndex((s) => s.id === service.id);
-    if (idx !== -1) setSelIndex(idx);
+    if (selectedServiceId === service.id) {
+      setSelectedServiceId(null);
+    } else {
+      setSelectedServiceId(service.id);
+    }
   };
 
   // confirm modal state and handler
   const [confirmOpen, setConfirmOpen] = useState(false);
   async function doConfirmedOrder() {
-    if (!selected) {
+    if (!selectedService) {
       setOrderStatus('No service selected');
       setConfirmOpen(false);
       return;
     }
+    
+    if (quantity > selectedService.max) {
+      toast.error(`The selected variant only supports up to ${selectedService.max}. Please select a different variant or reduce the quantity.`);
+      setConfirmOpen(false);
+      return;
+    }
+
     setConfirmOpen(false);
     setOrdering(true);
     setOrderStatus(null);
     try {
       const payload: any = {
-        serviceId: selected.id,
-        sourceServiceId: selected.sourceServiceId,
+        serviceId: selectedService.id,
+        sourceServiceId: selectedService.sourceServiceId,
         quantity,
         link,
       };
@@ -210,7 +389,7 @@ const SummaryContent = () => {
         payload.comments = comments.join('\n');
       }
 
-      if (selected.customInputRequired || customInput.trim()) {
+      if (selectedService.customInputRequired || customInput.trim()) {
         payload.customInput = customInput.trim();
         payload.answer = customInput.trim();
       }
@@ -287,11 +466,10 @@ const SummaryContent = () => {
     }
   }
 
-  const handleSelect = (value: string, type: 'geo' | 'speed' | 'refill' | 'drop') => {
-    if (type === 'geo') setGeoFilter(value);
-    if (type === 'speed') setSpeedFilter(value);
-    if (type === 'refill') setRefillFilter(value);
-    if (type === 'drop') setDropFilter(value);
+  const handleSelect = (value: string) => {
+    setSelectedTags(prev => 
+      prev.includes(value) ? prev.filter(t => t !== value) : [...prev, value]
+    );
   };
 
   const renderFilterDrawer = () => {
@@ -304,9 +482,9 @@ const SummaryContent = () => {
           <div className="drawer-handle" />
           <div className="drawer-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3>Filters</h3>
-            {(geoFilter !== 'All' || speedFilter !== 'All' || refillFilter !== 'All' || dropFilter !== 'All') && (
+            {selectedTags.length > 0 && (
               <button 
-                onClick={() => { setGeoFilter('All'); setSpeedFilter('All'); setRefillFilter('All'); setDropFilter('All'); }}
+                onClick={() => setSelectedTags([])}
                 style={{ background: 'none', border: 'none', color: '#a890ff', fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'GM' }}
               >
                 Clear All
@@ -314,65 +492,73 @@ const SummaryContent = () => {
             )}
           </div>
           <div className="drawer-sections">
-            <div className="drawer-filter-section">
-              <h4>Geo (Region)</h4>
-              <div className="filter-chips">
-                {GEO_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    className={`filter-chip ${geoFilter === opt.value ? 'selected' : ''}`}
-                    onClick={() => handleSelect(opt.value, 'geo')}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+            {availableTagsByType.geo.length > 0 && (
+              <div className="drawer-filter-section">
+                <h4>Geo (Region)</h4>
+                <div className="filter-chips">
+                  {availableTagsByType.geo.map((opt) => (
+                    <button
+                      key={opt}
+                      className={`filter-chip ${selectedTags.includes(opt) ? 'selected' : ''}`}
+                      onClick={() => handleSelect(opt)}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="drawer-filter-section">
-              <h4>Speed</h4>
-              <div className="filter-chips">
-                {SPEED_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    className={`filter-chip ${speedFilter === opt.value ? 'selected' : ''}`}
-                    onClick={() => handleSelect(opt.value, 'speed')}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+            {availableTagsByType.speed.length > 0 && (
+              <div className="drawer-filter-section">
+                <h4>Speed</h4>
+                <div className="filter-chips">
+                  {availableTagsByType.speed.map((opt) => (
+                    <button
+                      key={opt}
+                      className={`filter-chip ${selectedTags.includes(opt) ? 'selected' : ''}`}
+                      onClick={() => handleSelect(opt)}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="drawer-filter-section">
-              <h4>Refill</h4>
-              <div className="filter-chips">
-                {REFILL_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    className={`filter-chip ${refillFilter === opt.value ? 'selected' : ''}`}
-                    onClick={() => handleSelect(opt.value, 'refill')}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+            {availableTagsByType.refill.length > 0 && (
+              <div className="drawer-filter-section">
+                <h4>Refill</h4>
+                <div className="filter-chips">
+                  {availableTagsByType.refill.map((opt) => (
+                    <button
+                      key={opt}
+                      className={`filter-chip ${selectedTags.includes(opt) ? 'selected' : ''}`}
+                      onClick={() => handleSelect(opt)}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="drawer-filter-section">
-              <h4>Drop / Non Drop</h4>
-              <div className="filter-chips">
-                {DROP_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    className={`filter-chip ${dropFilter === opt.value ? 'selected' : ''}`}
-                    onClick={() => handleSelect(opt.value, 'drop')}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+            {availableTagsByType.drop.length > 0 && (
+              <div className="drawer-filter-section">
+                <h4>Drop / Non Drop</h4>
+                <div className="filter-chips">
+                  {availableTagsByType.drop.map((opt) => (
+                    <button
+                      key={opt}
+                      className={`filter-chip ${selectedTags.includes(opt) ? 'selected' : ''}`}
+                      onClick={() => handleSelect(opt)}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="drawer-footer">
               <button className="apply-btn" onClick={() => setActiveDrawer(null)}>
@@ -390,25 +576,40 @@ const SummaryContent = () => {
   const [sliderAtBottom, setSliderAtBottom] = useState(false);
 
   React.useEffect(() => {
-    const el = triggerRef.current;
-    if (!el) return;
-    
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting && entry.boundingClientRect.top < 50) {
-          setSliderAtBottom(true);
-        } else if (entry.isIntersecting) {
-          setSliderAtBottom(false);
-        }
-      },
-      {
-        threshold: 0,
-        rootMargin: "0px"
+    if (sliderAtBottom) {
+      document.body.classList.add('slider-active');
+    } else {
+      document.body.classList.remove('slider-active');
+    }
+    return () => {
+      document.body.classList.remove('slider-active');
+    };
+  }, [sliderAtBottom]);
+
+  React.useEffect(() => {
+    if (groupedFiltered.length === 0) {
+      setSliderAtBottom(false);
+      return;
+    }
+
+    const rootEl = document.querySelector('.root');
+    if (!rootEl) return;
+
+    const handleScroll = () => {
+      if (rootEl.scrollTop > 30) {
+        setSliderAtBottom(true);
+      } else {
+        setSliderAtBottom(false);
       }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+    };
+
+    handleScroll();
+
+    rootEl.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      rootEl.removeEventListener('scroll', handleScroll);
+    };
+  }, [groupedFiltered.length]);
 
   return (
     <div className='summary-container'>
@@ -449,32 +650,10 @@ const SummaryContent = () => {
         <PostPreview metric={service} metricCount={quantity} username={link || 'example_post'} imageUrl={metadata?.image} isLoading={metaLoading} />
       )}
       
-      {/* TOP SLIDER */}
-      <div className={`sticky-slider-wrapper top-slider ${sliderAtBottom ? 'hidden' : 'visible'}`}>
-        <QuantitySlider
-          value={quantity}
-          mode={sliderMode}
-          min={min}
-          max={max}
-          pricePerUnit={pricePerUnit}
-          onChange={(val) => startTransition(() => setQuantity(val))}
-          activeCategory={category}
-          onCategoryChange={setCategory}
-          onModeChange={setSliderMode}
-          onBudgetChange={setBudgetUsd}
-          showComments={showComments}
-          comments={comments}
-          setComments={setComments}
-          onOrder={handleOrder}
-          ordering={ordering}
-          orderStatus={orderStatus}
-        />
-      </div>
-
 
       <div className="service-list-container">
         <div ref={triggerRef} style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 1, pointerEvents: 'none' }} />
-        <div style={{ display: selectedService ? 'none' : 'block' }}>
+        <div style={{ display: viewingServiceDetails ? 'none' : 'block' }}>
           <div className="search-wrapper">
             <SearchContainer value={search} onChange={setSearch} onFilterClick={() => setActiveDrawer('all')} />
           </div>
@@ -485,73 +664,113 @@ const SummaryContent = () => {
             <button className={`tab-btn ${category === 'premium' ? 'active' : ''}`} onClick={() => setCategory('premium')}>Premium</button>
           </div>
 
+          <div className="quick-filters-scroll">
+            <button className="quick-filter-btn" onClick={() => setActiveDrawer('all')}>
+              <SlidersHorizontal size={14} /> Filters
+            </button>
+            {allSortedTags.slice(0, 10).map((tag) => (
+              <button 
+                key={tag}
+                className={`quick-filter-btn ${selectedTags.includes(tag) ? 'active' : ''}`} 
+                onClick={() => {
+                  setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+                }}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+
           <div className="showing-label">
-            <span>Showing <strong>{filtered.length}</strong> services</span>
+            <span>Showing <strong>{groupedFiltered.length}</strong> service groups</span>
           </div>
 
           <div className="services-list">
-            {filtered.map((s, idx) => (
-              <ServiceCard 
-                key={s.id} 
-                service={s} 
-                quantity={quantity} 
-                mode={sliderMode}
-                budgetUsd={budgetUsd}
-                link={link} 
-                isSelected={idx === selIndex}
-                onSelect={handleSelectService}
-                onViewDetails={handleViewDetails} 
-              />
-            ))}
+            {groupedFiltered.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '36px 20px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '16px', border: '1px dashed rgba(255, 255, 255, 0.15)', margin: '16px 0' }}>
+                <p style={{ color: '#ffffff', fontSize: '14px', fontWeight: 600, margin: '0 0 6px 0' }}>
+                  No services available for quantity of {quantity.toLocaleString()}
+                </p>
+                <p style={{ color: '#888888', fontSize: '12px', margin: 0 }}>
+                  Try dragging the quantity slider to a lower amount to view available packages.
+                </p>
+              </div>
+            ) : (
+              groupedFiltered.map((group) => (
+                <ServiceCard 
+                  key={group.id} 
+                  group={group} 
+                  quantity={quantity} 
+                  mode={sliderMode}
+                  budgetUsd={budgetUsd}
+                  link={link} 
+                  selectedServiceId={selectedServiceId || undefined}
+                  onSelect={handleSelectService}
+                  onViewDetails={handleViewDetails} 
+                />
+              ))
+            )}
           </div>
         </div>
 
-        {selectedService && (
+        {viewingServiceDetails && (
           <div className="service-details-inline">
             <ServiceInfoPanel
               services={filtered}
-              index={selIndex}
+              index={filtered.findIndex(s => s.id === viewingServiceDetails.id)}
               onChangeIndex={(i) => {
-                setSelIndex(i);
-                setSelectedService(filtered[i]);
+                setViewingServiceDetails(filtered[i] || null);
               }}
               activeCategory={category}
               onCategoryChange={setCategory}
-              onClose={() => setSelectedService(null)}
+              onClose={() => {
+                const closingId = viewingServiceDetails?.id;
+                setViewingServiceDetails(null);
+                setTimeout(() => {
+                  const el = document.getElementById(`service-${closingId}`);
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'instant', block: 'center' });
+                  } else {
+                    window.scrollTo(0, savedScroll);
+                  }
+                }, 50);
+              }}
             />
           </div>
         )}
       </div>
 
-      <div className={`sticky-slider-wrapper bottom-slider ${sliderAtBottom ? 'visible' : 'hidden'}`}>
-        <QuantitySlider
-          value={quantity}
-          mode={sliderMode}
-          min={min}
-          max={max}
-          pricePerUnit={pricePerUnit}
-          onChange={(val) => startTransition(() => setQuantity(val))}
-          activeCategory={category}
-          onCategoryChange={setCategory}
-          onModeChange={setSliderMode}
-          onBudgetChange={setBudgetUsd}
-          showComments={showComments}
-          comments={comments}
-          setComments={setComments}
-          customInputRequired={selected?.customInputRequired}
-          customInputLabel={selected?.customInputLabel}
-          customInput={customInput}
-          setCustomInput={setCustomInput}
-          onOrder={handleOrder}
-          ordering={ordering}
-          orderStatus={orderStatus}
-        />
-      </div>
+      {groupedFiltered.length > 0 && (
+        <div className={`sticky-slider-wrapper bottom-slider ${sliderAtBottom ? 'visible' : 'hidden'}`}>
+          <QuantitySlider
+            value={quantity}
+            mode={sliderMode}
+            min={min}
+            max={max}
+            pricePerUnit={pricePerUnit}
+            onChange={setQuantity}
+            activeCategory={category}
+            onCategoryChange={setCategory}
+            onModeChange={setSliderMode}
+            onBudgetChange={setBudgetUsd}
+            showComments={showComments}
+            comments={comments}
+            setComments={setComments}
+            customInputRequired={selectedService?.customInputRequired}
+            customInputLabel={selectedService?.customInputLabel}
+            customInput={customInput}
+            setCustomInput={setCustomInput}
+            onOrder={handleOrder}
+            ordering={ordering}
+            orderStatus={orderStatus}
+          />
+        </div>
+      )}
 
       <ConfirmModal
         open={confirmOpen}
         title="Place order"
-        message={`Place order for ${quantity} units on ${selected?.displayName || 'this service'}?`}
+        message={`Place order for ${quantity} units on ${selectedService?.displayName || 'this service'}?`}
         confirmLabel="Place order"
         onConfirm={doConfirmedOrder}
         onCancel={() => setConfirmOpen(false)}

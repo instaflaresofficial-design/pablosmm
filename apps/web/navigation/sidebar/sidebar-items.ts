@@ -59,8 +59,13 @@ export const sidebarItems: NavGroup[] = [
             url: "/admin/providers",
           },
           {
-            title: "Service Mapping Audit",
-            url: "/admin/providers/mapping",
+            title: "Catalog Manager",
+            url: "/admin/catalog",
+            isNew: true,
+          },
+          {
+            title: "Service Mapping (v2 - Legacy)",
+            url: "/admin/providers/mapping-v2",
           },
           {
             title: "Provider Service Verification",

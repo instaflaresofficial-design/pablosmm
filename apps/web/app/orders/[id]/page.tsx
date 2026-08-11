@@ -30,7 +30,7 @@ export default function OrderDetailPage() {
   const [refilling, setRefilling] = useState(false);
   
   const { services } = useNormalizedServices();
-  const { convertPrice, fxRate } = useAuth();
+  const { convertPrice } = useAuth();
 
   useEffect(() => {
     if (!id) return;
@@ -228,7 +228,7 @@ export default function OrderDetailPage() {
 
   let calculatedRatePer1000Inr = 0;
   if (matchingService?.ratePer1000) {
-    calculatedRatePer1000Inr = matchingService.ratePer1000 * (fxRate || 82.5);
+    calculatedRatePer1000Inr = matchingService.ratePer1000;
   } else if ((order.charge || order.amount) && order.quantity) {
     calculatedRatePer1000Inr = ((order.charge || order.amount) / order.quantity) * 1000;
   }

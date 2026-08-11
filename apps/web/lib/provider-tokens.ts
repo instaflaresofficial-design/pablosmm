@@ -1,13 +1,8 @@
 /**
- * Provider Portal Token Configuration (SERVER-SIDE ONLY)
+ * Provider Portal Token Configuration
  *
  * Each provider is given a unique secret token that is embedded in their
  * portal link. Only someone with the link can access the portal.
- *
- * To generate a new token, use something like:
- *   crypto.randomBytes(12).toString('hex')
- *
- * To rotate a token, change it here and redeploy. The old link stops working.
  */
 
 export interface ProviderTokenConfig {
@@ -19,7 +14,6 @@ export interface ProviderTokenConfig {
 
 /**
  * Map of secret token → provider config.
- * Keep this file server-side only — never import it in client components.
  */
 export const PROVIDER_TOKENS: Record<string, ProviderTokenConfig> = {
   // TopSMM portal link: /provider/verify/topsmm-xK9mP2wQ4r
@@ -38,7 +32,33 @@ export const PROVIDER_TOKENS: Record<string, ProviderTokenConfig> = {
 /**
  * Looks up a provider config by token.
  * Returns null if the token is invalid or unknown.
+ * Supports dynamic token resolution for any newly added provider sluggified key.
  */
 export function getProviderByToken(token: string): ProviderTokenConfig | null {
-  return PROVIDER_TOKENS[token] ?? null;
+  if (!token) return null;
+  if (PROVIDER_TOKENS[token]) {
+    return PROVIDER_TOKENS[token];
+  }
+  if (token.includes("-")) {
+    const key = token.split("-")[0].toLowerCase().trim();
+    if (key) {
+      return {
+        key: key,
+        name: key.toUpperCase(),
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Gets the token string for a provider key (e.g. "topsmm" → "topsmm-xK9mP2wQ4r")
+ */
+export function getProviderTokenKey(providerKey: string): string {
+  const cleanKey = (providerKey || "").toLowerCase().trim();
+  const entry = Object.entries(PROVIDER_TOKENS).find(
+    ([_, config]) => config.key.toLowerCase() === cleanKey
+  );
+  if (entry) return entry[0];
+  return `${cleanKey}-verify-portal`;
 }

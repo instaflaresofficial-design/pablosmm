@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"pablosmm/backend/internal/db"
+	"pablosmm/backend/internal/provider"
 	"pablosmm/backend/internal/service/smm"
 	"strconv"
 	"strings"
@@ -50,28 +51,40 @@ func (s *OrderSyncer) SyncOrders(ctx context.Context) {
 		return
 	}
 
-	var orderIDs []string
+		// provider_key -> []orderIDs
+	providerGroups := make(map[string][]string)
 	orderMap := make(map[string]int) // providerID -> localID
 
 	for _, row := range rows {
-		orderIDs = append(orderIDs, row.ProviderOrderID.String)
+		providerKey := row.ProviderKey
+		if providerKey == "" {
+			providerKey = provider.DefaultKey
+		}
+		providerGroups[providerKey] = append(providerGroups[providerKey], row.ProviderOrderID.String)
 		orderMap[row.ProviderOrderID.String] = int(row.ID)
 	}
 
-	if len(orderIDs) == 0 {
+	if len(orderMap) == 0 {
 		log.Println("No orders found to sync.")
 		return
 	}
-	log.Printf("Syncing %d orders: %v", len(orderIDs), orderIDs)
+	log.Printf("Syncing %d orders across %d providers", len(orderMap), len(providerGroups))
 
-	// 2. Fetch from Provider
-	statusData, err := s.smm.GetOrderStatus(orderIDs)
-	if err != nil {
-		log.Printf("Sync provider error: %v", err)
-		return
+	statusData := make(map[string]interface{})
+
+	// 2. Fetch from Providers
+	for providerKey, orderIDs := range providerGroups {
+		providerStatus, err := s.smm.GetOrderStatus(providerKey, orderIDs)
+		if err != nil {
+			log.Printf("Sync provider error for %s: %v", providerKey, err)
+			continue
+		}
+		log.Printf("Provider %s returned status for %d orders", providerKey, len(providerStatus))
+		
+		for k, v := range providerStatus {
+			statusData[k] = v
+		}
 	}
-	log.Printf("Provider returned status for %d orders", len(statusData))
-	// log.Printf("Raw Data: %v", statusData) // Uncomment for extreme debug
 
 	// 3. Update DB
 	for pID, localID := range orderMap {

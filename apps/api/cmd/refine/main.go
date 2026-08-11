@@ -9,7 +9,6 @@ import (
 
 	"pablosmm/backend/internal/config"
 	"pablosmm/backend/internal/db"
-	"pablosmm/backend/internal/service/fx"
 	"pablosmm/backend/internal/service/smm"
 
 	"github.com/joho/godotenv"
@@ -23,8 +22,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	fxSvc := fx.New(cfg.UsdToInr)
-	smmSvc := smm.New(database, cfg, fxSvc)
+	smmSvc := smm.New(database, cfg)
 
 	services, err := smmSvc.FetchServices()
 	if err != nil {

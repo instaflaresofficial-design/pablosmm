@@ -1,29 +1,26 @@
 "use client";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { getApiBaseUrl } from '@/lib/config';
 
-export type Currency = 'USD' | 'INR';
+/** PabloSMM serves Indian customers; all catalog and wallet amounts are INR. */
+export type Currency = 'INR';
 
 type Ctx = {
   currency: Currency;
   setCurrency: (c: Currency) => void;
-  // USD -> display currency conversion rate (INR per USD when INR selected)
-  usdToInr: number | null;
-  // Convert an amount in USD to the active currency number
-  convert: (amountInUsd: number) => number;
-  // Convert an amount in the active currency back to USD
-  convertToUsd: (amountInActive: number) => number;
-  // Format a number in active currency compact (K/M suffix)
-  formatMoneyCompact: (amountInUsd: number) => string;
-  // Format a number in active currency full
-  formatMoney: (amountInUsd: number) => string;
+  /** @deprecated Kept for API compatibility; always null (no FX). */
+  usdToInr: null;
+  /** Amounts from the API are already in INR. */
+  convert: (amountInInr: number) => number;
+  convertToUsd: (amountInInr: number) => number;
+  formatMoneyCompact: (amountInInr: number) => string;
+  formatMoney: (amountInInr: number) => string;
+  formatMoneyDirect: (amountInNative: number) => string;
+  formatMoneyDirectCompact: (amountInNative: number) => string;
 };
 
 const CurrencyContext = createContext<Ctx | null>(null);
 
 const STORAGE_KEY = 'app:currency';
-const DEFAULT_CURRENCY: Currency = 'INR';
-const DEFAULT_USD_TO_INR = null;
 
 function compact(n: number): string {
   if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
@@ -32,84 +29,53 @@ function compact(n: number): string {
 }
 
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
-  const [currency, setCurrencyState] = useState<Currency>(DEFAULT_CURRENCY);
-  const [usdToInr, setUsdToInr] = useState<number | null>(DEFAULT_USD_TO_INR);
+  const [currency, setCurrencyState] = useState<Currency>('INR');
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY) as Currency | null;
-      if (saved === 'USD' || saved === 'INR') {
-        setCurrencyState(saved);
-      }
+      localStorage.setItem(STORAGE_KEY, 'INR');
     } catch { }
   }, []);
 
-  // Fetch live USD -> INR rate on mount and refresh every 10 minutes
-  useEffect(() => {
-    let mounted = true;
-    const fetchRate = async () => {
-      try {
-        // Prefer server-side FX endpoint so client and server use the same source/fallbacks
-        const res = await fetch(`${getApiBaseUrl()}/fx`);
-        const j = await res.json();
-        const rate = j?.usd_to_inr;
-        // Validate server-provided rate to avoid bogus scraped values
-        if (mounted && typeof rate === 'number' && isFinite(rate) && rate > 0 && rate > 10 && rate < 1000) {
-          setUsdToInr(rate);
-          return;
-        }
-      } catch {
-        // fallthrough to client-side fallback below
-      }
-      try {
-        const res2 = await fetch('https://api.exchangerate.host/latest?base=USD&symbols=INR');
-        const j2 = await res2.json();
-        const rate2 = j2?.rates?.INR;
-        if (mounted && typeof rate2 === 'number' && isFinite(rate2) && rate2 > 0) {
-          setUsdToInr(rate2);
-        }
-      } catch {
-        // ignore and keep default
-      }
-    };
-    fetchRate();
-    const id = setInterval(fetchRate, 10 * 60 * 1000);
-    return () => { mounted = false; clearInterval(id); };
-  }, []);
-
   const setCurrency = useCallback((c: Currency) => {
-    setCurrencyState(c);
-    try { localStorage.setItem(STORAGE_KEY, c); } catch { }
+    setCurrencyState('INR');
+    try { localStorage.setItem(STORAGE_KEY, 'INR'); } catch { }
   }, []);
 
-  const convert = useCallback((amountInUsd: number) => {
-    const rate = usdToInr || 82.5; // Final fallback if completely offline
-    return currency === 'INR' ? amountInUsd * rate : amountInUsd;
-  }, [currency, usdToInr]);
+  const convert = useCallback((amountInInr: number) => amountInInr, []);
+  const convertToUsd = useCallback((amountInInr: number) => amountInInr, []);
 
-  // Convert an amount in the active currency back to USD
-  const convertToUsd = useCallback((amountInActive: number) => {
-    const rate = usdToInr || 82.5;
-    return currency === 'INR' ? amountInActive / rate : amountInActive;
-  }, [currency, usdToInr]);
+  const formatMoney = useCallback((amountInInr: number) => {
+    const n = convert(amountInInr);
+    try { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n); } catch { }
+    return `₹${n.toFixed(2)}`;
+  }, [convert]);
 
-  const formatMoney = useCallback((amountInUsd: number) => {
-    const n = convert(amountInUsd);
-    if (currency === 'INR') {
-      try { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n); } catch { }
-      return `₹${n.toFixed(2)}`;
-    }
-    try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n); } catch { }
-    return `$${n.toFixed(2)}`;
-  }, [convert, currency]);
+  const formatMoneyCompact = useCallback((amountInInr: number) => {
+    const n = convert(amountInInr);
+    return `₹${compact(n)}`;
+  }, [convert]);
 
-  const formatMoneyCompact = useCallback((amountInUsd: number) => {
-    const n = convert(amountInUsd);
-    const symbol = currency === 'INR' ? '₹' : '$';
-    return `${symbol}${compact(n)}`;
-  }, [convert, currency]);
+  const formatMoneyDirect = useCallback((amountInNative: number) => {
+    try { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(amountInNative); } catch { }
+    return `₹${amountInNative.toFixed(2)}`;
+  }, []);
 
-  const value = useMemo<Ctx>(() => ({ currency, setCurrency, usdToInr, convert, formatMoneyCompact, formatMoney, convertToUsd }), [currency, setCurrency, usdToInr, convert, formatMoneyCompact, formatMoney, convertToUsd]);
+  const formatMoneyDirectCompact = useCallback((amountInNative: number) => {
+    return `₹${compact(amountInNative)}`;
+  }, []);
+
+  const value = useMemo<Ctx>(() => ({
+    currency,
+    setCurrency,
+    usdToInr: null,
+    convert,
+    formatMoneyCompact,
+    formatMoney,
+    convertToUsd,
+    formatMoneyDirect,
+    formatMoneyDirectCompact,
+  }), [currency, setCurrency, convert, formatMoneyCompact, formatMoney, convertToUsd, formatMoneyDirect, formatMoneyDirectCompact]);
 
   return (
     <CurrencyContext.Provider value={value}>{children}</CurrencyContext.Provider>
@@ -120,19 +86,27 @@ export function useCurrency() {
   const ctx = useContext(CurrencyContext);
   if (!ctx) {
     return {
-      currency: 'INR',
+      currency: 'INR' as Currency,
       setCurrency: () => {},
-      usdToInr: 95.5,
+      usdToInr: null,
       convert: (val: number) => (typeof val === 'number' && !isNaN(val) ? val : 0),
       formatMoneyCompact: (val: number) => {
         const n = typeof val === 'number' && !isNaN(val) ? val : 0;
-        return `₹${n.toFixed(2)}`;
+        return `₹${compact(n)}`;
       },
       formatMoney: (val: number) => {
         const n = typeof val === 'number' && !isNaN(val) ? val : 0;
         return `₹${n.toFixed(2)}`;
       },
       convertToUsd: (val: number) => (typeof val === 'number' && !isNaN(val) ? val : 0),
+      formatMoneyDirect: (val: number) => {
+        const n = typeof val === 'number' && !isNaN(val) ? val : 0;
+        return `₹${n.toFixed(2)}`;
+      },
+      formatMoneyDirectCompact: (val: number) => {
+        const n = typeof val === 'number' && !isNaN(val) ? val : 0;
+        return `₹${compact(n)}`;
+      },
     };
   }
   return ctx;

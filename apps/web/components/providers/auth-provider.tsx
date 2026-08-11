@@ -37,14 +37,12 @@ interface AuthContextType {
     refreshUser: () => Promise<void>;
     convertPrice: (amountInInr: number) => string;
     currencySymbol: string;
-    fxRate: number;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
-    const [fxRate, setFxRate] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
     const pathname = usePathname();
@@ -69,9 +67,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 const data = await res.json();
                 // console.log('[AuthProvider] fetchUser: Success, user:', data.user);
                 setUser(data.user);
-                if (data.fxRate) {
-                    setFxRate(data.fxRate);
-                }
             } else {
                 setUser(null);
                 if (redirectOnFailure) {
@@ -169,22 +164,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const convertPrice = (amountInInr: number) => {
-        if (!user || user.currency === 'INR') {
-            return `₹${amountInInr.toFixed(2)}`;
-        }
-        if (user.currency === 'USD') {
-            const currentFxRate = fxRate || 82.5; // fallback tightly coupled to the API logic down the line if strictly needed
-            const usd = amountInInr / currentFxRate;
-            return `$${usd.toFixed(usd < 0.01 ? 4 : 2)}`;
-        }
-        return `₹${amountInInr.toFixed(2)}`;
-    };
+    const convertPrice = (amountInInr: number) => `₹${amountInInr.toFixed(2)}`;
 
-    const currencySymbol = user?.currency === 'INR' ? '₹' : '$';
+    const currencySymbol = '₹';
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser: () => fetchUser(), convertPrice, currencySymbol, fxRate: fxRate || 82.5 }}>
+        <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser: () => fetchUser(), convertPrice, currencySymbol }}>
             {children}
         </AuthContext.Provider>
     );

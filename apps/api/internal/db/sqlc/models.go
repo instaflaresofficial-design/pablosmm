@@ -45,6 +45,7 @@ type Order struct {
 	Link             pgtype.Text        `json:"link"`
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 	RefillsRemaining pgtype.Int4        `json:"refills_remaining"`
+	ProviderKey      pgtype.Text        `json:"provider_key"`
 }
 
 type OrderRequest struct {
@@ -56,6 +57,20 @@ type OrderRequest struct {
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 	ProviderResponse pgtype.Text        `json:"provider_response"`
+}
+
+type PabloCatalog struct {
+	ID                int32              `json:"id"`
+	Name              string             `json:"name"`
+	VariantName       pgtype.Text        `json:"variant_name"`
+	SellPriceInr      pgtype.Numeric     `json:"sell_price_inr"`
+	Platform          pgtype.Text        `json:"platform"`
+	Category          pgtype.Text        `json:"category"`
+	IsActive          pgtype.Bool        `json:"is_active"`
+	ProviderID        pgtype.Text        `json:"provider_id"`
+	ProviderServiceID pgtype.Text        `json:"provider_service_id"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
 type ServiceOverride struct {
@@ -84,6 +99,13 @@ type ServiceOverride struct {
 	CustomInputLabel    pgtype.Text        `json:"custom_input_label"`
 }
 
+type Session struct {
+	ID           int32              `json:"id"`
+	SessionToken string             `json:"session_token"`
+	UserID       int32              `json:"user_id"`
+	Expires      pgtype.Timestamptz `json:"expires"`
+}
+
 type SmmProvider struct {
 	ID        int32              `json:"id"`
 	Key       string             `json:"key"`
@@ -94,13 +116,6 @@ type SmmProvider struct {
 	IsActive  bool               `json:"is_active"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
-}
-
-type Session struct {
-	ID           int32              `json:"id"`
-	SessionToken string             `json:"session_token"`
-	UserID       int32              `json:"user_id"`
-	Expires      pgtype.Timestamptz `json:"expires"`
 }
 
 type Transaction struct {

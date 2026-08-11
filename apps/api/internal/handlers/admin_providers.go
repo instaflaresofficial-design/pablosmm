@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"pablosmm/backend/internal/db/sqlc"
+	"pablosmm/backend/internal/provider"
 	"strconv"
 	"strings"
 
@@ -47,10 +48,8 @@ func (h *Handler) GetAdminServices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fxRate := h.fx.GetUsdToInr()
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"services": services,
-		"fxRate":   fxRate,
 	})
 }
 
@@ -64,18 +63,18 @@ func (h *Handler) ListProvidersAdmin(w http.ResponseWriter, r *http.Request) {
 	if len(providers) == 0 {
 		apiUrl := h.cfg.SMMAPIURL
 		if apiUrl == "" {
-			apiUrl = "https://topsmm.in/api/v2"
+			apiUrl = provider.DefaultAPIURL
 		}
 		apiKey := h.cfg.SMMAPIKey
 		if apiKey == "" {
 			apiKey = "configured_in_env"
 		}
 		p, err := h.db.Queries.UpsertSmmProvider(context.Background(), sqlc.UpsertSmmProviderParams{
-			Key:      "topsmm",
-			Name:     "TOPSMM",
+			Key:      provider.DefaultKey,
+			Name:     provider.DefaultName,
 			ApiUrl:   apiUrl,
 			ApiKey:   apiKey,
-			Currency: "INR",
+			Currency: provider.DefaultCurrency,
 			IsActive: true,
 		})
 		if err != nil {
@@ -83,11 +82,11 @@ func (h *Handler) ListProvidersAdmin(w http.ResponseWriter, r *http.Request) {
 			providers = []sqlc.SmmProvider{
 				{
 					ID:       1,
-					Key:      "topsmm",
-					Name:     "TOPSMM",
+					Key:      provider.DefaultKey,
+					Name:     provider.DefaultName,
 					ApiUrl:   apiUrl,
 					ApiKey:   apiKey,
-					Currency: "INR",
+					Currency: provider.DefaultCurrency,
 					IsActive: true,
 				},
 			}
@@ -195,25 +194,30 @@ func (h *Handler) DeleteProviderAdmin(w http.ResponseWriter, r *http.Request) {
 }
 
 type CurateServiceUpdate struct {
-	ID                        string  `json:"id"`
-	Status                    string  `json:"status"`
-	DisplayName               *string `json:"displayName,omitempty"`
-	Min                       *int64  `json:"min,omitempty"`
-	Max                       *int64  `json:"max,omitempty"`
-	Refill                    *bool   `json:"refill,omitempty"`
-	Cancel                    *bool   `json:"cancel,omitempty"`
-	Quality                   *string `json:"quality,omitempty"`
-	RefillTag                 *string `json:"refillTag,omitempty"`
-	IsProviderSubmission      bool    `json:"isProviderSubmission,omitempty"`
-	ApproveProviderSubmission bool    `json:"approveProviderSubmission,omitempty"`
-	RejectProviderSubmission  bool    `json:"rejectProviderSubmission,omitempty"`
+	ID                        string   `json:"id"`
+	Status                    string   `json:"status"`
+	DisplayName               *string  `json:"displayName,omitempty"`
+	Min                       *int64   `json:"min,omitempty"`
+	Max                       *int64   `json:"max,omitempty"`
+	Refill                    *bool    `json:"refill,omitempty"`
+	Cancel                    *bool    `json:"cancel,omitempty"`
+	Quality                   *string  `json:"quality,omitempty"`
+	RefillTag                 *string  `json:"refillTag,omitempty"` // legacy, soon to be VariantName
+	VariantName               *string  `json:"variantName,omitempty"`
+	SellPriceINR              *float64 `json:"sellPriceInr,omitempty"`
+	Platform                  string   `json:"platform,omitempty"`
+	Category                  string   `json:"category,omitempty"`
+	IsProviderSubmission      bool     `json:"isProviderSubmission,omitempty"`
+	ApproveProviderSubmission bool     `json:"approveProviderSubmission,omitempty"`
+	RejectProviderSubmission  bool     `json:"rejectProviderSubmission,omitempty"`
 }
 
 func (h *Handler) CurateServicesAdmin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	var body struct {
-		Updates []CurateServiceUpdate `json:"updates"`
+		ProviderName string                 `json:"providerName"`
+		Updates      []CurateServiceUpdate  `json:"updates"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -227,6 +231,29 @@ func (h *Handler) CurateServicesAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	providerID := body.ProviderName
+	if providerID == "" {
+		providerID = "topsmm"
+	}
+
+	// Ensure unique index on pablo_catalog for upsert
+	_, _ = h.db.Pool.Exec(context.Background(), `CREATE UNIQUE INDEX IF NOT EXISTS idx_pablo_catalog_provider_svc ON pablo_catalog (provider_id, provider_service_id);`)
+
+	queryCatalogUpsert := `INSERT INTO pablo_catalog (
+		name, variant_name, sell_price_inr, platform, category, provider_id, provider_service_id, is_active, updated_at
+	) VALUES (
+		$1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP
+	)
+	ON CONFLICT (provider_id, provider_service_id)
+	DO UPDATE SET
+		name = CASE WHEN EXCLUDED.name != '' THEN EXCLUDED.name ELSE pablo_catalog.name END,
+		variant_name = CASE WHEN EXCLUDED.variant_name != '' THEN EXCLUDED.variant_name ELSE pablo_catalog.variant_name END,
+		sell_price_inr = CASE WHEN EXCLUDED.sell_price_inr > 0 THEN EXCLUDED.sell_price_inr ELSE pablo_catalog.sell_price_inr END,
+		platform = CASE WHEN EXCLUDED.platform != '' THEN EXCLUDED.platform ELSE pablo_catalog.platform END,
+		category = CASE WHEN EXCLUDED.category != '' THEN EXCLUDED.category ELSE pablo_catalog.category END,
+		is_active = EXCLUDED.is_active,
+		updated_at = CURRENT_TIMESTAMP;`
+
 	// Query for direct/approved edits (modifies live store status)
 	queryDirect := `INSERT INTO service_overrides (
 		source_service_id, display_name, display_description, rate_multiplier, is_hidden, 
@@ -234,14 +261,15 @@ func (h *Handler) CurateServicesAdmin(w http.ResponseWriter, r *http.Request) {
 		refill, cancel, dripfeed, service_type,
 		targeting, quality, stability, refill_limit, custom_input_required, custom_input_label, updated_at
 	)
-	VALUES ($1, COALESCE($2, ''), '', CASE WHEN $3 > 0 THEN $3 ELSE 1.0 END, $4::boolean, '', COALESCE($5, '{}'::text[]), '', '', COALESCE($6, false), COALESCE($7, false), false, '', '', COALESCE($8, ''), '', 3, false, '', CURRENT_TIMESTAMP)
+	VALUES ($1, COALESCE($2, ''), '', CASE WHEN $3 > 0 THEN $3 ELSE 1.0 END, $4::boolean, COALESCE($9, ''), COALESCE($5, '{}'::text[]), '', '', $6::boolean, $7::boolean, false, '', '', COALESCE($8, ''), '', 3, false, '', CURRENT_TIMESTAMP)
 	ON CONFLICT (source_service_id) 
 	DO UPDATE SET 
 		display_name = CASE WHEN EXCLUDED.display_name != '' THEN EXCLUDED.display_name ELSE service_overrides.display_name END,
 		is_hidden = EXCLUDED.is_hidden,
-		tags = CASE WHEN array_length(EXCLUDED.tags, 1) > 0 THEN EXCLUDED.tags ELSE service_overrides.tags END,
-		refill = EXCLUDED.refill,
-		cancel = EXCLUDED.cancel,
+		category = CASE WHEN EXCLUDED.category != '' THEN EXCLUDED.category ELSE service_overrides.category END,
+		tags = EXCLUDED.tags,
+		refill = CASE WHEN $6::boolean IS NOT NULL THEN EXCLUDED.refill ELSE service_overrides.refill END,
+		cancel = CASE WHEN $7::boolean IS NOT NULL THEN EXCLUDED.cancel ELSE service_overrides.cancel END,
 		quality = CASE WHEN EXCLUDED.quality != '' THEN EXCLUDED.quality ELSE service_overrides.quality END,
 		updated_at = CURRENT_TIMESTAMP;`
 
@@ -265,28 +293,36 @@ func (h *Handler) CurateServicesAdmin(w http.ResponseWriter, r *http.Request) {
 	    updated_at = CURRENT_TIMESTAMP
 	WHERE source_service_id = $1;`
 
-	// Single item rejection query: strips all proposed_* and provider_pending tags
-	queryRejectSingle := `UPDATE service_overrides 
-	SET tags = ARRAY(
-			SELECT elem FROM unnest(tags) elem 
+	// Single item rejection query: strips all proposed_* and provider_pending tags, and sets is_hidden
+	queryRejectSingle := `INSERT INTO service_overrides (
+		source_service_id, is_hidden, tags, updated_at
+	)
+	VALUES ($1, $2::boolean, '{}'::text[], CURRENT_TIMESTAMP)
+	ON CONFLICT (source_service_id)
+	DO UPDATE SET 
+		is_hidden = EXCLUDED.is_hidden,
+		tags = ARRAY(
+			SELECT elem FROM unnest(COALESCE(service_overrides.tags, '{}'::text[])) elem 
 			WHERE elem NOT LIKE 'proposed_%' 
 			  AND elem != 'provider_pending:true'
 			  AND elem NOT LIKE 'provider_status:%'
-	    ),
-	    updated_at = CURRENT_TIMESTAMP
-	WHERE source_service_id = $1;`
+		),
+		updated_at = CURRENT_TIMESTAMP;`
 
-	// Query for provider submission staging (does NOT alter live store is_hidden)
 	queryProviderStaging := `INSERT INTO service_overrides (
 		source_service_id, display_name, display_description, rate_multiplier, is_hidden, 
 		category, tags, provider_category, display_id, 
 		refill, cancel, dripfeed, service_type,
 		targeting, quality, stability, refill_limit, custom_input_required, custom_input_label, updated_at
 	)
-	VALUES ($1, COALESCE($2, ''), '', CASE WHEN $3 > 0 THEN $3 ELSE 1.0 END, $4::boolean, '', COALESCE($5, '{}'::text[]), '', '', COALESCE($6, false), COALESCE($7, false), false, '', '', COALESCE($8, ''), '', 3, false, '', CURRENT_TIMESTAMP)
+	VALUES ($1, COALESCE($2, ''), '', CASE WHEN $3 > 0 THEN $3 ELSE 1.0 END, $4::boolean, COALESCE($9, ''), COALESCE($5, '{}'::text[]), '', '', $6::boolean, $7::boolean, false, '', '', COALESCE($8, ''), '', 3, false, '', CURRENT_TIMESTAMP)
 	ON CONFLICT (source_service_id) 
 	DO UPDATE SET 
-		tags = EXCLUDED.tags,
+		tags = ARRAY(
+			SELECT DISTINCT elem FROM unnest(array_cat(service_overrides.tags, EXCLUDED.tags)) elem
+		),
+		refill = CASE WHEN $6::boolean IS NOT NULL THEN EXCLUDED.refill ELSE service_overrides.refill END,
+		cancel = CASE WHEN $7::boolean IS NOT NULL THEN EXCLUDED.cancel ELSE service_overrides.cancel END,
 		quality = CASE WHEN EXCLUDED.quality != '' THEN EXCLUDED.quality ELSE service_overrides.quality END,
 		updated_at = CURRENT_TIMESTAMP;`
 
@@ -328,6 +364,20 @@ func (h *Handler) CurateServicesAdmin(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		if item.Platform != "" && item.Platform != "other" {
+			tags = append(tags, "platform:"+item.Platform)
+		}
+		if item.Category != "" && item.Category != "other" && item.Category != "default" {
+			tags = append(tags, "category:"+item.Category)
+		}
+		
+		if item.VariantName != nil && *item.VariantName != "" {
+			tags = append(tags, "variant_name:"+*item.VariantName)
+		}
+		if item.SellPriceINR != nil {
+			tags = append(tags, fmt.Sprintf("sell_price_inr:%.2f", *item.SellPriceINR))
+		}
+
 		displayNameVal := ""
 		if item.DisplayName != nil {
 			displayNameVal = *item.DisplayName
@@ -338,14 +388,14 @@ func (h *Handler) CurateServicesAdmin(w http.ResponseWriter, r *http.Request) {
 			qualityVal = *item.Quality
 		}
 
-		refillVal := false
+		var refillVal *bool
 		if item.Refill != nil {
-			refillVal = *item.Refill
+			refillVal = item.Refill
 		}
 
-		cancelVal := false
+		var cancelVal *bool
 		if item.Cancel != nil {
-			cancelVal = *item.Cancel
+			cancelVal = item.Cancel
 		}
 
 		if item.ApproveProviderSubmission {
@@ -358,13 +408,13 @@ func (h *Handler) CurateServicesAdmin(w http.ResponseWriter, r *http.Request) {
 				batch.Queue(queryApproveSingle, fullID, isHidden, tags)
 			}
 		} else if item.RejectProviderSubmission {
-			batch.Queue(queryRejectSingle, item.ID)
+			batch.Queue(queryRejectSingle, item.ID, isHidden)
 			if strings.Contains(item.ID, ":") {
 				parts := strings.SplitN(item.ID, ":", 2)
-				batch.Queue(queryRejectSingle, parts[1])
+				batch.Queue(queryRejectSingle, parts[1], isHidden)
 			} else {
 				fullID := "topsmm:" + item.ID
-				batch.Queue(queryRejectSingle, fullID)
+				batch.Queue(queryRejectSingle, fullID, isHidden)
 			}
 		} else {
 			targetQuery := queryDirect
@@ -375,16 +425,48 @@ func (h *Handler) CurateServicesAdmin(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Queue primary ID
-			batch.Queue(targetQuery, item.ID, displayNameVal, float64(1.0), effectiveIsHidden, tags, refillVal, cancelVal, qualityVal)
+			batch.Queue(targetQuery, item.ID, displayNameVal, float64(1.0), effectiveIsHidden, tags, refillVal, cancelVal, qualityVal, item.Category)
 
 			// Queue counterpart ID (raw vs provider-prefixed)
 			if strings.Contains(item.ID, ":") {
 				parts := strings.SplitN(item.ID, ":", 2)
-				batch.Queue(targetQuery, parts[1], displayNameVal, float64(1.0), effectiveIsHidden, tags, refillVal, cancelVal, qualityVal)
+				batch.Queue(targetQuery, parts[1], displayNameVal, float64(1.0), effectiveIsHidden, tags, refillVal, cancelVal, qualityVal, item.Category)
 			} else {
 				fullID := "topsmm:" + item.ID
-				batch.Queue(targetQuery, fullID, displayNameVal, float64(1.0), effectiveIsHidden, tags, refillVal, cancelVal, qualityVal)
+				batch.Queue(targetQuery, fullID, displayNameVal, float64(1.0), effectiveIsHidden, tags, refillVal, cancelVal, qualityVal, item.Category)
 			}
+		}
+
+		// Also update pablo_catalog table
+		cleanSvcID := item.ID
+		provID := providerID
+		if strings.Contains(cleanSvcID, ":") {
+			parts := strings.SplitN(cleanSvcID, ":", 2)
+			provID = parts[0]
+			cleanSvcID = parts[1]
+		}
+
+		if isHidden {
+			batch.Queue(`DELETE FROM pablo_catalog WHERE (provider_id = $1 OR provider_id = 'topsmm') AND provider_service_id = $2;`, provID, cleanSvcID)
+		} else {
+			catNameVal := displayNameVal
+			if catNameVal == "" {
+				catNameVal = fmt.Sprintf("Service #%s", cleanSvcID)
+			}
+
+			catVariantVal := "Default"
+			if item.VariantName != nil && *item.VariantName != "" {
+				catVariantVal = *item.VariantName
+			} else if item.RefillTag != nil && *item.RefillTag != "" {
+				catVariantVal = *item.RefillTag
+			}
+
+			catSellPriceVal := float64(0.0)
+			if item.SellPriceINR != nil {
+				catSellPriceVal = *item.SellPriceINR
+			}
+
+			batch.Queue(queryCatalogUpsert, catNameVal, catVariantVal, catSellPriceVal, item.Platform, item.Category, provID, cleanSvcID, true)
 		}
 	}
 

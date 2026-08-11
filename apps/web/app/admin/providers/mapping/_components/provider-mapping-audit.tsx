@@ -292,6 +292,11 @@ const QUALITY_OPTIONS = [
   { value: "global", label: "Worldwide" },
 ];
 
+function formatInrRate(rate: number): string {
+  if (typeof rate !== "number" || isNaN(rate)) return "₹0.00";
+  return `₹${rate.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+}
+
 export function ProviderMappingAudit({ initialServices }: { initialServices: ServiceItem[] }) {
   const { formatMoney } = useCurrency();
   
@@ -302,7 +307,16 @@ export function ProviderMappingAudit({ initialServices }: { initialServices: Ser
   const [selectedType, setSelectedType] = React.useState<string>("all");
   const [selectedVariant, setSelectedVariant] = React.useState<string>("all");
   const [searchQuery, setSearchQuery] = React.useState<string>("");
+  const [submissionFilter, setSubmissionFilter] = React.useState<"all" | "provider_picked" | "active_only">("all");
   const [services, setServices] = React.useState<ServiceItem[]>(initialServices);
+
+  // Auto-switch filter if provider submissions exist
+  React.useEffect(() => {
+    const hasSubmissions = initialServices.some(s => s.hasPendingProviderSubmission);
+    if (hasSubmissions) {
+      setSubmissionFilter("provider_picked");
+    }
+  }, [initialServices]);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [isSaving, setIsSaving] = React.useState(false);
 
@@ -344,25 +358,78 @@ export function ProviderMappingAudit({ initialServices }: { initialServices: Ser
 
   // Sync initialServices into maps
   React.useEffect(() => {
-    const actMap: Record<string, boolean> = {};
-    const refMap: Record<string, string> = {};
-    const qMap: Record<string, string> = {};
-    const dNameMap: Record<string, string> = {};
-    const dDescMap: Record<string, string> = {};
+    setActiveMap((prev) => {
+      const actMap: Record<string, boolean> = { ...prev };
+      const hasPendingSubmissions = services.some((s) => s.hasPendingProviderSubmission);
 
-    services.forEach((s) => {
-      const id = s.id || s.sourceServiceId;
-      actMap[id] = s.status !== "hidden" && !s.isHidden;
-      if (s.displayName) dNameMap[id] = s.displayName;
-      if (s.displayDescription) dDescMap[id] = s.displayDescription;
-      if (s.quality) qMap[id] = s.quality;
+      services.forEach((s) => {
+        const id = s.id || s.sourceServiceId;
+        const sourceId = s.sourceServiceId || (s.id.includes(":") ? s.id.split(":")[1] : s.id);
+        const isPickedByProvider =
+          s.hasPendingProviderSubmission ||
+          s.pendingProviderStatus === "active" ||
+          s.proposedStatus === "active" ||
+          (s.tags && s.tags.some((t) => t.includes("provider_status:active") || t.includes("proposed_status:active") || t.includes("provider_pending:")));
+
+        if (actMap[id] === undefined && actMap[sourceId] === undefined) {
+          const hasDbOverride =
+            (s.tags && s.tags.length > 0) ||
+            Boolean(s.displayName) ||
+            Boolean(s.proposedStatus) ||
+            s.hasPendingProviderSubmission ||
+            s.pendingProviderStatus === "active";
+
+          let isAct = false;
+          if (hasPendingSubmissions) {
+            isAct = Boolean(isPickedByProvider);
+          } else if (hasDbOverride) {
+            isAct = s.status === "active" && !s.isHidden;
+          } else {
+            isAct = false;
+          }
+
+          actMap[id] = isAct;
+          actMap[sourceId] = isAct;
+        }
+      });
+      return actMap;
     });
 
-    setActiveMap(actMap);
-    setRefillMap(refMap);
-    setQualityMap(qMap);
-    setDisplayNameMap(dNameMap);
-    setDisplayDescMap(dDescMap);
+    setRefillMap((prev) => {
+      const next = { ...prev };
+      services.forEach((s) => {
+        const id = s.id || s.sourceServiceId;
+        if (!next[id] && s.proposedRefillTag) next[id] = s.proposedRefillTag;
+      });
+      return next;
+    });
+
+    setQualityMap((prev) => {
+      const next = { ...prev };
+      services.forEach((s) => {
+        const id = s.id || s.sourceServiceId;
+        if (!next[id] && s.quality) next[id] = s.quality;
+      });
+      return next;
+    });
+
+    setDisplayNameMap((prev) => {
+      const next = { ...prev };
+      services.forEach((s) => {
+        const id = s.id || s.sourceServiceId;
+        if (!next[id] && s.displayName) next[id] = s.displayName;
+      });
+      return next;
+    });
+
+    setDisplayDescMap((prev) => {
+      const next = { ...prev };
+      services.forEach((s) => {
+        const id = s.id || s.sourceServiceId;
+        if (!next[id] && s.displayDescription) next[id] = s.displayDescription;
+      });
+      return next;
+    });
   }, [services]);
 
   // Refresh services from backend
@@ -394,6 +461,15 @@ export function ProviderMappingAudit({ initialServices }: { initialServices: Ser
     const typeSynonyms = currentTypeObj.synonyms;
 
     return services.filter((s) => {
+      // 0. Provider Line Match
+      if (selectedProviderKey && selectedProviderKey !== "all") {
+        const pKey = selectedProviderKey.toLowerCase();
+        const sProv = (s.providerName || "").toLowerCase();
+        const sId = (s.id || s.sourceServiceId || "").toLowerCase();
+        const matchesProv = sProv.includes(pKey) || sId.startsWith(pKey) || sId.includes(`:${pKey}`);
+        if (sProv && !matchesProv) return false;
+      }
+
       // 1. Platform Match
       const sPlatform = (s.platform || "").toLowerCase();
       const sCategory = (s.rawProviderCategory || s.providerCategory || s.category || "").toLowerCase();
@@ -443,9 +519,23 @@ export function ProviderMappingAudit({ initialServices }: { initialServices: Ser
         if (!matchesSearch) return false;
       }
 
+      // 5. Submission / Status Filter
+      if (submissionFilter === "provider_picked") {
+        const isCurated =
+          s.hasPendingProviderSubmission ||
+          s.pendingProviderStatus === "active" ||
+          (s.tags && s.tags.some((t) => t.includes("provider_status:") || t.includes("provider_pending:"))) ||
+          activeMap[s.id || s.sourceServiceId] ||
+          (!s.isHidden && s.status !== "hidden");
+        if (!isCurated) return false;
+      } else if (submissionFilter === "active_only") {
+        const isAct = activeMap[s.id || s.sourceServiceId];
+        if (!isAct) return false;
+      }
+
       return true;
     });
-  }, [services, selectedPlatform, selectedType, selectedVariant, searchQuery, currentTaxonomy]);
+  }, [services, selectedProviderKey, selectedPlatform, selectedType, selectedVariant, searchQuery, submissionFilter, activeMap, currentTaxonomy]);
 
   // Group Candidate Services & Preserve 100% RAW TopSMM API Sequence
   const { categoryOrder, groupedCandidateServices } = React.useMemo(() => {
@@ -493,10 +583,18 @@ export function ProviderMappingAudit({ initialServices }: { initialServices: Ser
   // Toggle Single Service Active Status
   const toggleActive = (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    setActiveMap((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
+    const sourceId = id.includes(":") ? id.split(":")[1] : id;
+    const prefixedId = id.includes(":") ? id : `topsmm:${id}`;
+    setActiveMap((prev) => {
+      const currentVal = prev[id] ?? prev[sourceId] ?? prev[prefixedId] ?? false;
+      const nextVal = !currentVal;
+      return {
+        ...prev,
+        [id]: nextVal,
+        [sourceId]: nextVal,
+        [prefixedId]: nextVal,
+      };
+    });
   };
 
   // Batch toggle all visible in candidate list
@@ -504,7 +602,9 @@ export function ProviderMappingAudit({ initialServices }: { initialServices: Ser
     const nextMap = { ...activeMap };
     candidateServices.forEach((s) => {
       const id = s.id || s.sourceServiceId;
+      const sourceId = s.sourceServiceId || (id.includes(":") ? id.split(":")[1] : id);
       nextMap[id] = enable;
+      nextMap[sourceId] = enable;
     });
     setActiveMap(nextMap);
   };
@@ -513,16 +613,20 @@ export function ProviderMappingAudit({ initialServices }: { initialServices: Ser
   const handleSaveMappings = async () => {
     try {
       setIsSaving(true);
-      const updates = Object.keys(activeMap).map((id) => {
+      const uniqueUpdatesMap = new Map<string, any>();
+
+      Object.keys(activeMap).forEach((id) => {
         const sourceId = id.includes(":") ? id.split(":")[1] : id;
-        return {
+        uniqueUpdatesMap.set(sourceId, {
           id: sourceId,
           status: activeMap[id] ? "active" : "hidden",
           displayName: displayNameMap[id] || undefined,
           quality: qualityMap[id] || undefined,
           refillTag: refillMap[id] || undefined,
-        };
+        });
       });
+
+      const updates = Array.from(uniqueUpdatesMap.values());
 
       if (updates.length === 0) {
         toast.info("No services found to save.");
@@ -612,27 +716,64 @@ export function ProviderMappingAudit({ initialServices }: { initialServices: Ser
     const pendingItems = services.filter((s) => s.hasPendingProviderSubmission);
     if (pendingItems.length === 0) return;
 
+    const pendingItemIds = new Set(pendingItems.map((s) => s.id || s.sourceServiceId));
+
     try {
       await apiClient.post("/admin/services/clear-pending-provider-submissions?action=accept_all", {});
 
-      const nextActiveMap = { ...activeMap };
-      pendingItems.forEach((s) => {
-        const id = s.id || s.sourceServiceId;
-        const newStatus = s.pendingProviderStatus || "active";
-        nextActiveMap[id] = newStatus === "active";
-      });
-      setActiveMap(nextActiveMap);
+      // Synchronize submission batch status in JSON audit file to 'approved'
+      try {
+        await fetch("/api/provider/services/curate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "approve" }),
+        });
+      } catch (err) {
+        console.error("Failed to sync submission file approval status", err);
+      }
 
+      const nextActiveMap: Record<string, boolean> = {};
+      const updates: any[] = [];
+
+      services.forEach((s) => {
+        const id = s.id || s.sourceServiceId;
+        const sourceId = id.includes(":") ? id.split(":")[1] : id;
+        
+        // Preserve previously active services (already approved) + new pending services
+        const isPreviouslyActive = activeMap[id] || (!s.isHidden && s.status !== "hidden");
+        const isPickedByProvider = pendingItemIds.has(id) || s.pendingProviderStatus === "active" || isPreviouslyActive;
+
+        nextActiveMap[id] = isPickedByProvider;
+
+        updates.push({
+          id: sourceId,
+          status: isPickedByProvider ? "active" : "hidden",
+          min: pendingItemIds.has(id) ? s.proposedMin || s.min : s.min,
+          max: pendingItemIds.has(id) ? s.proposedMax || s.max : s.max,
+          refillTag: pendingItemIds.has(id) ? s.proposedRefillTag || undefined : undefined,
+          quality: pendingItemIds.has(id) ? s.proposedQuality || s.quality : s.quality,
+        });
+      });
+
+      // Save curation override to DB permanently
+      await apiClient.post("/admin/services/curate", { updates });
+
+      setActiveMap(nextActiveMap);
       setServices((prev) =>
-        prev.map((s) => ({
-          ...s,
-          hasPendingProviderSubmission: false,
-          status: s.pendingProviderStatus ? (s.pendingProviderStatus as any) : s.status,
-          isHidden: s.pendingProviderStatus ? s.pendingProviderStatus === "hidden" : s.isHidden,
-        }))
+        prev.map((s) => {
+          const id = s.id || s.sourceServiceId;
+          const isPicked = pendingItemIds.has(id) || s.pendingProviderStatus === "active";
+          return {
+            ...s,
+            hasPendingProviderSubmission: false,
+            status: isPicked ? "active" : "hidden",
+            isHidden: !isPicked,
+          };
+        })
       );
 
-      toast.success(`Accepted all ${pendingItems.length} provider verification audits!`);
+      setSubmissionFilter("active_only");
+      toast.success(`Accepted ${pendingItems.length} provider-verified services! Only provider-verified working services are now active.`);
     } catch (err: any) {
       toast.error(err.message || "Failed to accept all provider updates");
     }
@@ -642,6 +783,16 @@ export function ProviderMappingAudit({ initialServices }: { initialServices: Ser
   const handleRejectAllPending = async () => {
     try {
       await apiClient.post("/admin/services/clear-pending-provider-submissions?action=reject_all", {});
+      try {
+        await fetch("/api/provider/services/curate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "reject" }),
+        });
+      } catch (err) {
+        console.error("Failed to sync submission file rejection status", err);
+      }
+
       setServices((prev) =>
         prev.map((s) => ({ ...s, hasPendingProviderSubmission: false }))
       );
@@ -768,6 +919,7 @@ export function ProviderMappingAudit({ initialServices }: { initialServices: Ser
                   <SelectValue placeholder="Select provider" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all" className="text-xs font-bold">All Providers Catalog</SelectItem>
                   {providers.length > 0 ? (
                     providers.map((p) => (
                       <SelectItem key={p.key} value={p.key} className="text-xs">
@@ -875,18 +1027,45 @@ export function ProviderMappingAudit({ initialServices }: { initialServices: Ser
         {/* RIGHT MAIN CANVAS (~70% / 8 Cols) - CLEAN PRODUCT CARDS */}
         <Card className="lg:col-span-8 flex flex-col border shadow-sm min-h-[600px]">
           {/* Subheader Toolbar */}
-          <div className="p-3.5 border-b bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-muted-foreground font-medium font-mono">Viewing:</span>
-              <Badge variant="secondary" className="font-semibold capitalize">
-                {selectedPlatform} ➔ {selectedType} {selectedVariant !== "all" ? `(${selectedVariant})` : ""}
-              </Badge>
-              <Badge variant="outline" className="text-emerald-600 bg-emerald-500/10 font-mono flex items-center gap-1">
-                <ListOrdered className="w-3.5 h-3.5 text-emerald-600" /> 100% TopSMM Dropdown Sequence
-              </Badge>
+          <div className="p-3.5 border-b bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <div className="flex items-center gap-1 bg-background p-1 rounded-lg border">
+                <Button
+                  size="xs"
+                  variant={submissionFilter === "all" ? "default" : "ghost"}
+                  onClick={() => setSubmissionFilter("all")}
+                  className="text-[11px] h-7 px-2.5"
+                >
+                  All Provider Catalog
+                </Button>
+                <Button
+                  size="xs"
+                  variant={submissionFilter === "provider_picked" ? "default" : "ghost"}
+                  onClick={() => setSubmissionFilter("provider_picked")}
+                  className={cn(
+                    "text-[11px] h-7 px-2.5 gap-1",
+                    submissionFilter === "provider_picked"
+                      ? "bg-amber-600 text-white font-bold"
+                      : "text-amber-600 dark:text-amber-400 font-semibold"
+                  )}
+                >
+                  <Sparkles className="w-3 h-3" /> Curated (Live + Pending)
+                </Button>
+                <Button
+                  size="xs"
+                  variant={submissionFilter === "active_only" ? "default" : "ghost"}
+                  onClick={() => setSubmissionFilter("active_only")}
+                  className={cn(
+                    "text-[11px] h-7 px-2.5",
+                    submissionFilter === "active_only" ? "bg-emerald-600 text-white font-bold" : "text-emerald-600"
+                  )}
+                >
+                  Active Only ({activeCountInCandidates})
+                </Button>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <Button
                 variant="ghost"
                 size="xs"
@@ -1026,7 +1205,7 @@ export function ProviderMappingAudit({ initialServices }: { initialServices: Ser
                                       #{service.sourceServiceId}
                                     </Badge>
                                     <Badge className="bg-emerald-600 text-white font-mono text-[11px] font-bold">
-                                      {formatMoney(service.ratePer1000)} / 1k
+                                      {formatInrRate(service.ratePer1000)} / 1k
                                     </Badge>
                                   </div>
 
@@ -1244,7 +1423,7 @@ export function ProviderMappingAudit({ initialServices }: { initialServices: Ser
               <div className="grid grid-cols-2 gap-2 bg-muted/40 p-3 rounded-xl border font-mono text-center">
                 <div>
                   <div className="text-[10px] text-muted-foreground">Cost Price</div>
-                  <div className="font-bold text-xs text-emerald-600">{formatMoney(activeEditingService.ratePer1000)} / 1k</div>
+                  <div className="font-bold text-xs text-emerald-600">{formatInrRate(activeEditingService.ratePer1000)} / 1k</div>
                 </div>
                 <div>
                   <div className="text-[10px] text-muted-foreground">Min - Max</div>

@@ -54,7 +54,7 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
   value,
   mode: modeProp
 }) => {
-  const { formatMoneyCompact, convert, currency, usdToInr, convertToUsd } = useCurrency();
+  const { formatMoneyDirect, formatMoneyDirectCompact, convert, currency, usdToInr, convertToUsd } = useCurrency();
   const [internalQuantity, setInternalQuantity] = useState<number>(1000);
   
   const quantity = value !== undefined ? value : internalQuantity;
@@ -98,14 +98,6 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
     return n.toLocaleString();
   };
 
-  const formatINR = (n: number) => {
-    try {
-      return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n);
-    } catch {
-      return `$${n.toFixed(2)}`;
-    }
-  };
-
   const triggerFeedback = () => {
     if (!isMobile) return;
     const now = Date.now();
@@ -147,19 +139,50 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, budgetEditing, quantity, pricePerUnit, currency]);
 
+  // --- LOGARITHMIC SLIDER MAPPING ---
+  // The HTML range slider goes from 0 to 1000 for smooth precision.
+  // We map that linear 0-1000 scale to a logarithmic min-max quantity.
+  
+  const getLogMapping = (q: number, mn: number, mx: number): number => {
+    if (mn >= mx) return 0;
+    const minLog = Math.log(Math.max(1, mn));
+    const maxLog = Math.log(mx);
+    // return percentage 0-1000
+    const val = ((Math.log(Math.max(1, q)) - minLog) / (maxLog - minLog)) * 1000;
+    return Math.max(0, Math.min(1000, val));
+  };
+
+  const getValueFromLog = (p: number, mn: number, mx: number): number => {
+    if (mn >= mx) return mn;
+    const minLog = Math.log(Math.max(1, mn));
+    const maxLog = Math.log(mx);
+    const scale = (maxLog - minLog) / 1000;
+    const raw = Math.exp(minLog + scale * p);
+    return Math.max(mn, Math.min(mx, raw));
+  };
+
+  // The actual state for the HTML slider (0-1000)
+  const [sliderPct, setSliderPct] = useState<number>(0);
+
+  useEffect(() => {
+    setSliderPct(getLogMapping(quantity, min, max));
+  }, [quantity, min, max]);
+
   const handleInput = (e: React.FormEvent<HTMLInputElement>) => {
-    const raw = parseInt((e.target as HTMLInputElement).value, 10);
-    if (!isNaN(raw)) {
-      const snapped = snapToStep(raw);
-      setQuantity(snapped);
-      onChange?.(snapped);
-    }
+    const rawPct = parseFloat((e.target as HTMLInputElement).value);
+    setSliderPct(rawPct);
+    const rawQty = getValueFromLog(rawPct, min, max);
+    const snapped = snapToStep(rawQty);
+    setQuantity(snapped);
+    onChange?.(snapped);
     triggerFeedback();
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = parseInt(e.target.value, 10);
-    const snapped = isNaN(raw) ? min : snapToStep(raw);
+    const rawPct = parseFloat(e.target.value);
+    setSliderPct(rawPct);
+    const rawQty = getValueFromLog(rawPct, min, max);
+    const snapped = snapToStep(rawQty);
     setQuantity(snapped);
     onChange?.(snapped);
     triggerFeedback();
@@ -185,7 +208,7 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
     onBudgetChange?.(totalPriceNumberUsd);
   }, [totalPriceNumberUsd]);
 
-  const totalPriceCompact = formatMoneyCompact(totalPriceNumberUsd);
+  const totalPriceCompact = formatMoneyDirectCompact(totalPriceNumberUsd);
   const isFixed = min === max;
   const currencySymbol = currency === 'INR' ? '₹' : '$';
 
@@ -214,13 +237,13 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
   return (
     <div className="slider-container">
       <div className="sliderWrapper">
-        <div className="sliderFill" style={{ width: `${fillPercentage}%` }} />
+        <div className="sliderFill" style={{ width: `${(sliderPct / 1000) * 100}%` }} />
         <input
           type="range"
-          min={min}
-          max={max}
-          value={quantity}
-          step={1}
+          min={0}
+          max={1000}
+          value={sliderPct}
+          step={0.1}
           disabled={isFixed}
           onInput={handleInput}            // fires continuously while sliding (mobile-friendly)
           onChange={handleChange}          // extra safety
@@ -320,7 +343,7 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
           {mode !== 'amount' && (
             <div className="slider-info">
               <span className="label">PRICE</span>
-              <span className="value">{totalPriceCompact}</span>
+              <span className="value">{formatMoneyDirect(totalPriceNumberUsd)}</span>
             </div>
           )}
           {mode === 'amount' && (
@@ -374,7 +397,7 @@ const QuantitySlider: React.FC<QuantitySliderProps> = ({
             aria-live="polite"
           >
             {ordering ? 'Ordering…' : (
-              <span>place order for <span className="order-amount">{currency === 'INR' ? formatINR(convert(totalPriceNumberUsd)) : `$${(convert(totalPriceNumberUsd)).toFixed(2)}`}</span></span>
+              <span>place order for <span className="order-amount">{formatMoneyDirect(totalPriceNumberUsd)}</span></span>
             )}
           </button>
         </div>

@@ -199,7 +199,7 @@ func (q *Queries) GetUserDataForMe(ctx context.Context, id int32) (GetUserDataFo
 const getUserForLogin = `-- name: GetUserForLogin :one
 SELECT id, password_hash, role 
 FROM users 
-WHERE email=$1 OR username=$1
+WHERE LOWER(email) = LOWER($1) OR LOWER(username) = LOWER($1)
 `
 
 type GetUserForLoginRow struct {
@@ -208,8 +208,8 @@ type GetUserForLoginRow struct {
 	Role         string      `json:"role"`
 }
 
-func (q *Queries) GetUserForLogin(ctx context.Context, email pgtype.Text) (GetUserForLoginRow, error) {
-	row := q.db.QueryRow(ctx, getUserForLogin, email)
+func (q *Queries) GetUserForLogin(ctx context.Context, lower string) (GetUserForLoginRow, error) {
+	row := q.db.QueryRow(ctx, getUserForLogin, lower)
 	var i GetUserForLoginRow
 	err := row.Scan(&i.ID, &i.PasswordHash, &i.Role)
 	return i, err

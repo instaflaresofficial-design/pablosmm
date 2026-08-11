@@ -8,16 +8,25 @@ Social Media Marketing panel — grow your social media presence with affordable
 pablosmm/
 ├── apps/
 │   ├── web/          Next.js frontend (customer site + admin dashboard)
-│   └── api/          Go backend (REST API, auth, SMM provider integration)
-├── docs/             Documentation
-├── Makefile           Root-level build orchestrator
+│   └── api/          Go backend (REST API, auth, TopSMM integration)
+├── docs/             Architecture and setup notes
+├── scripts/          Local dev utilities (not shipped)
+├── Makefile          Root-level build orchestrator
 └── .gitignore
 ```
+
+## Market
+
+PabloSMM currently serves **Indian customers only**. All customer-facing prices and wallet balances are in **INR** (no FX conversion).
+
+## Upstream provider
+
+Orders are fulfilled via **TopSMM** (`TOPSMM_API_URL`, `TOPSMM_API_KEY` in `apps/api/.env`).
 
 ## Prerequisites
 
 - **Node.js** ≥ 18
-- **Go** ≥ 1.24
+- **Go** ≥ 1.25
 - **Make** (GNU Make — install via `choco install make` on Windows, or use Git Bash)
 
 ## Quick Start
@@ -70,6 +79,7 @@ make docker    # Build Docker image
 | Layer | Technology |
 |-------|-----------|
 | Frontend | Next.js 16, React 19, Tailwind CSS v4, Zustand |
-| Backend | Go 1.24, Chi router, PostgreSQL (Neon) |
+| Backend | Go 1.25, Chi router, PostgreSQL (Neon) |
+| Upstream SMM | TopSMM panel API v2 |
 | Auth | Google OAuth, JWT |
 | Payments | Cryptomus, UPI |

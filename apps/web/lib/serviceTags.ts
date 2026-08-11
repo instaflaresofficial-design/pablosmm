@@ -4,107 +4,157 @@ export interface ServiceTag {
   label: string;
   icon: string;
   className: string;
+  type: 'refill' | 'drop' | 'speed' | 'geo';
 }
 
 export interface ServiceTagData {
   tags: ServiceTag[];
   geo: 'Indian' | 'USA' | 'Global';
-  speed: 'Instant' | 'Fast' | 'Normal Speed';
+  speed: 'Instant' | 'Fast' | 'Normal Speed' | 'Slow Speed' | 'Unstable';
   refill: 'No Refill' | 'Available';
-  drop: 'Non Drop' | 'May Drop';
+  drop: 'Non Drop' | 'Low Drop' | 'High Drop';
 }
 
 export function getServiceTags(service: NormalizedSmmService | any): ServiceTagData {
+  if (!service) {
+    return { tags: [], geo: 'Global', speed: 'Normal Speed', refill: 'No Refill', drop: 'Low Drop' };
+  }
+
   const categoryStr = (service.category || '').toLowerCase();
-  const nameStr = (service.displayName || '').toLowerCase();
-  const descStr = (service.description || '').toLowerCase();
+  const nameStr = (service.displayName || service.name || service.providerName || '').toLowerCase();
+  const descStr = (service.description || service.displayDescription || service.desc || '').toLowerCase();
+  const fullText = `${categoryStr} ${nameStr} ${descStr}`;
 
   const tags: ServiceTag[] = [];
   
   // 1. Refill Tag
-  const hasRefill = service.refill || nameStr.includes('refill') || descStr.includes('refill') || nameStr.includes(' ar') || descStr.includes(' ar');
-  const isNoRefill = nameStr.includes('no refill') || descStr.includes('no refill') || nameStr.includes('non refill');
+  const isExplicitNoRefill = 
+    /\b(no\s*refill|non\s*refill|without\s*refill|no-refill|non-refill|refill\s*:\s*(?:no|false|0|none|off|disabled)|0\s*days?\s*refill|no\s*guarantee|no\s*warranty|without\s*guarantee)\b/i.test(fullText);
+
+  const isExplicitRefill = 
+    /\b(refill|guarantee|warranty|auto\s*refill|\br30\b|\br60\b|\br90\b|\br365\b)\b/i.test(fullText);
+
+  let hasRefill = false;
+  if (isExplicitNoRefill) {
+    hasRefill = false;
+  } else if (service.refill === true || isExplicitRefill) {
+    hasRefill = true;
+  } else if (service.refill === false) {
+    hasRefill = false;
+  }
+
+  let refillStatus: 'No Refill' | 'Available' = 'No Refill';
   
-  let refillStatus: 'No Refill' | 'Available' = 'Available';
-  
-  if (hasRefill && !isNoRefill) {
+  if (hasRefill) {
     let refillLabel = 'Refill Available';
-    const fullText = `${nameStr} ${descStr}`;
     
-    if (fullText.includes('lifetime') || fullText.includes('life time')) {
+    if (fullText.includes('lifetime') || fullText.includes('permanent')) {
       refillLabel = 'Lifetime Refill';
     } else {
-      const match = fullText.match(/(\d+)\s*(?:days?|d)(?:\s*refill)?|refill\s*(?:for\s*)?(\d+)\s*(?:days?|d)/);
+      const match = fullText.match(/(\d+)\s*(?:days?|d)(?:\s*refill|\s*guarantee|\s*warranty)?|refill\s*(?:for\s*)?(\d+)\s*(?:days?|d)/i);
       if (match) {
         const num = match[1] || match[2];
-        refillLabel = `${num} Days Refill`;
+        if (num === '0') {
+          hasRefill = false;
+        } else {
+          refillLabel = `${num} Days Refill`;
+        }
       } else {
-        const looseMatch = fullText.match(/(\d+)\s*days?/);
-        if (looseMatch) refillLabel = `${looseMatch[1]} Days Refill`;
+        const looseMatch = fullText.match(/(\d+)\s*days?/i);
+        if (looseMatch && looseMatch[1] !== '0') {
+          refillLabel = `${looseMatch[1]} Days Refill`;
+        }
       }
     }
     
-    tags.push({ label: refillLabel, icon: '/order/refill.png', className: 'refill' });
-    refillStatus = 'Available';
-  } else {
-    tags.push({ label: 'No Refill', icon: '/order/refill.png', className: 'refill-no' });
+    if (hasRefill) {
+      tags.push({ label: refillLabel, icon: '/order/refill.png', className: 'refill', type: 'refill' });
+      refillStatus = 'Available';
+    }
+  }
+
+  if (!hasRefill) {
+    tags.push({ label: 'No Refill', icon: '/order/refill.png', className: 'refill-no', type: 'refill' });
     refillStatus = 'No Refill';
   }
 
-  // 2. Drop / Non-Drop Tag
+  // 2. Drop / Non-Drop / High Drop Tag
   const isNonDrop = 
     (service as any).drop === 'non_drop' || 
     service.stability?.toLowerCase().includes('non') ||
-    nameStr.includes('non drop') || 
-    nameStr.includes('non-drop') || 
-    nameStr.includes('nondrop') || 
-    nameStr.includes('no drop') ||
-    descStr.includes('non drop') || 
-    descStr.includes('non-drop') || 
-    descStr.includes('nondrop') || 
-    descStr.includes('no drop') ||
-    categoryStr.includes('non drop') || 
-    categoryStr.includes('non-drop') ||
-    categoryStr.includes('nondrop');
+    /\b(non[-\s]?drop|no\s*drop|nondrop|zero\s*drop|drop\s*free|never\s*drop|permanent)\b/i.test(fullText);
 
-  let dropStatus: 'Non Drop' | 'May Drop' = 'May Drop';
+  const isHighDrop = 
+    (service as any).drop === 'high_drop' ||
+    /\b(high[-\s]?drop|may\s*drop|will\s*drop|possible\s*drop|heavy\s*drop|fast\s*drop|high\s*loss|drop\s*rate\s*:?\s*high|drop\s*:\s*high)\b/i.test(fullText);
+
+  let dropStatus: 'Non Drop' | 'Low Drop' | 'High Drop' = 'Low Drop';
   if (isNonDrop) {
-    tags.push({ label: 'Non Drop', icon: '/order/non-drop.png', className: 'nondrop' });
+    tags.push({ label: 'Non Drop', icon: '/order/non-drop.png', className: 'nondrop', type: 'drop' });
     dropStatus = 'Non Drop';
+  } else if (isHighDrop) {
+    tags.push({ label: 'High Drop', icon: '/order/non-drop.png', className: 'highdrop', type: 'drop' });
+    dropStatus = 'High Drop';
   } else {
-    tags.push({ label: 'May Drop', icon: '/order/non-drop.png', className: 'drop' });
-    dropStatus = 'May Drop';
+    tags.push({ label: 'Low Drop', icon: '/order/non-drop.png', className: 'drop', type: 'drop' });
+    dropStatus = 'Low Drop';
   }
 
-  // 3. Speed Tag
-  let speedStatus: 'Instant' | 'Fast' | 'Normal Speed' = 'Normal Speed';
-  if (service.averageTime && service.averageTime < 600) {
-    tags.push({ label: 'Instant', icon: '/order/instant.png', className: 'instant' });
-    speedStatus = 'Instant';
-  } else if (service.averageTime && service.averageTime < 3600) {
-    tags.push({ label: 'Fast', icon: '/order/instant.png', className: 'fast' });
-    speedStatus = 'Fast';
+  // 3. Speed Tag (aligned with admin catalog platform-aware thresholds)
+  let speedStatus: 'Instant' | 'Fast' | 'Normal Speed' | 'Slow Speed' | 'Unstable' = 'Normal Speed';
+  const rawAvg = (service as any).average_time ?? service.averageTime;
+  const avgMins = (rawAvg !== undefined && rawAvg !== null && rawAvg !== "" && rawAvg !== "N/A") 
+    ? (typeof rawAvg === "number" ? rawAvg : parseFloat(String(rawAvg)))
+    : null;
+
+  const platform = ((service as any).platform || "").toLowerCase();
+  const isYoutube = platform === "youtube";
+  const thresholds = isYoutube ? { fast: 120, normal: 720, slow: 2880 } : { fast: 30, normal: 120, slow: 720 };
+
+  if (avgMins !== null && !isNaN(avgMins) && avgMins > 0) {
+    if (avgMins <= 10) {
+      tags.push({ label: 'Instant', icon: '/order/instant.png', className: 'instant', type: 'speed' });
+      speedStatus = 'Instant';
+    } else if (avgMins <= thresholds.fast) {
+      tags.push({ label: 'Fast', icon: '/order/instant.png', className: 'fast', type: 'speed' });
+      speedStatus = 'Fast';
+    } else if (avgMins <= thresholds.normal) {
+      tags.push({ label: 'Normal Speed', icon: '/order/instant.png', className: 'normal', type: 'speed' });
+      speedStatus = 'Normal Speed';
+    } else if (avgMins <= thresholds.slow) {
+      tags.push({ label: 'Slow Speed', icon: '/order/instant.png', className: 'slow', type: 'speed' });
+      speedStatus = 'Slow Speed';
+    } else {
+      tags.push({ label: 'Unstable', icon: '/order/instant.png', className: 'unstable', type: 'speed' });
+      speedStatus = 'Unstable';
+    }
   } else if (nameStr.includes('instant') || descStr.includes('instant')) {
-    tags.push({ label: 'Instant', icon: '/order/instant.png', className: 'instant' });
+    tags.push({ label: 'Instant', icon: '/order/instant.png', className: 'instant', type: 'speed' });
     speedStatus = 'Instant';
   } else if (nameStr.includes('fast') || descStr.includes('fast')) {
-    tags.push({ label: 'Fast', icon: '/order/instant.png', className: 'fast' });
+    tags.push({ label: 'Fast', icon: '/order/instant.png', className: 'fast', type: 'speed' });
     speedStatus = 'Fast';
+  } else if (nameStr.includes('slow') || descStr.includes('slow')) {
+    tags.push({ label: 'Slow Speed', icon: '/order/instant.png', className: 'slow', type: 'speed' });
+    speedStatus = 'Slow Speed';
+  } else if (nameStr.includes('unstable') || descStr.includes('unstable')) {
+    tags.push({ label: 'Unstable', icon: '/order/instant.png', className: 'unstable', type: 'speed' });
+    speedStatus = 'Unstable';
   } else {
-    tags.push({ label: 'Normal Speed', icon: '/order/instant.png', className: 'normal' });
+    tags.push({ label: 'Normal Speed', icon: '/order/instant.png', className: 'normal', type: 'speed' });
     speedStatus = 'Normal Speed';
   }
-  
+
   // 4. Geo Tag
   let geoStatus: 'Indian' | 'USA' | 'Global' = 'Global';
   if (categoryStr.includes('indian') || nameStr.includes('indian') || categoryStr.includes('india') || nameStr.includes('india') || descStr.includes('indian')) {
-    tags.push({ label: 'Indian', icon: '/order/indian.png', className: 'region' });
+    tags.push({ label: 'Indian', icon: '/order/indian.png', className: 'region', type: 'geo' });
     geoStatus = 'Indian';
   } else if (categoryStr.includes('usa ') || nameStr.includes('usa ') || categoryStr.includes(' usa') || nameStr.includes(' usa') || categoryStr.includes('us ') || nameStr.includes('us ') || descStr.includes(' usa ') || descStr.includes(' usa,')) {
-    tags.push({ label: 'USA', icon: '/order/us.png', className: 'region' });
+    tags.push({ label: 'USA', icon: '/order/us.png', className: 'region', type: 'geo' });
     geoStatus = 'USA';
   } else {
-    tags.push({ label: 'Global', icon: '/order/global.png', className: 'region' });
+    tags.push({ label: 'Global', icon: '/order/global.png', className: 'region', type: 'geo' });
     geoStatus = 'Global';
   }
 

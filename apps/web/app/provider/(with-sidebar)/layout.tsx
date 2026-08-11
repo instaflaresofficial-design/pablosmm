@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { Toaster } from "@/components/admin/ui/sonner";
 import { PREFERENCE_DEFAULTS } from "@/lib/admin/preferences/preferences-config";
 import { PreferencesStoreProvider } from "@/stores/preferences/preferences-provider";
-import { ProviderSidebar } from "./_components/provider-sidebar";
+import { ProviderSidebar } from "../_components/provider-sidebar";
 import { Separator } from "@/components/admin/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/admin/ui/sidebar";
 import { SIDEBAR_COLLAPSIBLE_VALUES, SIDEBAR_VARIANT_VALUES } from "@/lib/admin/preferences/layout";

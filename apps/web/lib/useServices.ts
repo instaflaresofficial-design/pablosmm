@@ -3,12 +3,11 @@ import { useEffect, useRef, useState } from 'react';
 import { getApiBaseUrl } from './config';
 import type { NormalizedSmmService } from '@/types/smm';
 
-let cache: { services: NormalizedSmmService[], fxRate: number } | null = null;
-let inflight: Promise<{ services: NormalizedSmmService[], fxRate: number }> | null = null;
+let cache: { services: NormalizedSmmService[] } | null = null;
+let inflight: Promise<{ services: NormalizedSmmService[] }> | null = null;
 
 export function useNormalizedServices() {
   const [services, setServices] = useState<NormalizedSmmService[]>(cache?.services || []);
-  const [fxRate, setFxRate] = useState<number>(cache?.fxRate || 96.40);
   const [loading, setLoading] = useState<boolean>(!cache);
   const [error, setError] = useState<string | null>(null);
   const mounted = useRef(true);
@@ -27,7 +26,6 @@ export function useNormalizedServices() {
             })
             .then((j) => ({
               services: (j.services as NormalizedSmmService[]) || [],
-              fxRate: j.fxRate || 96.40
             }))
             .finally(() => {
               inflight = null;
@@ -36,7 +34,6 @@ export function useNormalizedServices() {
         cache = data;
         if (mounted.current) {
           setServices(data.services);
-          setFxRate(data.fxRate);
         }
       } catch (e: any) {
         if (mounted.current) setError(e?.message || 'Failed to load services');
@@ -50,5 +47,5 @@ export function useNormalizedServices() {
     };
   }, []);
 
-  return { services, loading, error, fxRate };
+  return { services, loading, error };
 }

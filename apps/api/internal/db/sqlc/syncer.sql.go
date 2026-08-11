@@ -35,7 +35,7 @@ func (q *Queries) GetOrderForSyncUpdate(ctx context.Context, id int32) (GetOrder
 }
 
 const getOrdersForSync = `-- name: GetOrdersForSync :many
-SELECT id, provider_order_id, status 
+SELECT id, provider_order_id, status, COALESCE(provider_key, '')::text as provider_key 
 FROM orders 
 WHERE status IN ('pending', 'processing', 'submitted', 'in_progress', 'active', 'canceled', 'failed', 'completed', 'refunded') 
 AND provider_order_id IS NOT NULL 
@@ -48,6 +48,7 @@ type GetOrdersForSyncRow struct {
 	ID              int32       `json:"id"`
 	ProviderOrderID pgtype.Text `json:"provider_order_id"`
 	Status          string      `json:"status"`
+	ProviderKey     string      `json:"provider_key"`
 }
 
 func (q *Queries) GetOrdersForSync(ctx context.Context) ([]GetOrdersForSyncRow, error) {
@@ -59,7 +60,12 @@ func (q *Queries) GetOrdersForSync(ctx context.Context) ([]GetOrdersForSyncRow, 
 	var items []GetOrdersForSyncRow
 	for rows.Next() {
 		var i GetOrdersForSyncRow
-		if err := rows.Scan(&i.ID, &i.ProviderOrderID, &i.Status); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProviderOrderID,
+			&i.Status,
+			&i.ProviderKey,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

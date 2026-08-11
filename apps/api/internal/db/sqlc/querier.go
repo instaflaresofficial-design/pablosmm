@@ -21,6 +21,7 @@ type Querier interface {
 	CheckUniqueAmount(ctx context.Context, uniqueAmount pgtype.Numeric) (int64, error)
 	CheckUserExists(ctx context.Context, arg CheckUserExistsParams) (bool, error)
 	CountWalletTransactions(ctx context.Context, userID pgtype.Int4) (int64, error)
+	CreateCatalogService(ctx context.Context, arg CreateCatalogServiceParams) (PabloCatalog, error)
 	CreateCryptomusWalletRequest(ctx context.Context, arg CreateCryptomusWalletRequestParams) (int32, error)
 	CreateGoogleUser(ctx context.Context, arg CreateGoogleUserParams) (CreateGoogleUserRow, error)
 	CreateOrderRequest(ctx context.Context, arg CreateOrderRequestParams) (CreateOrderRequestRow, error)
@@ -28,14 +29,20 @@ type Querier interface {
 	CreditWallet(ctx context.Context, arg CreditWalletParams) error
 	DebitWallet(ctx context.Context, arg DebitWalletParams) error
 	DecrementOrderRefills(ctx context.Context, id int32) error
+	DeleteCatalogService(ctx context.Context, id int32) error
 	DeleteOrder(ctx context.Context, id int32) error
+	DeleteSmmProvider(ctx context.Context, id int32) error
 	FindMatchingWalletRequest(ctx context.Context, uniqueAmount pgtype.Numeric) (FindMatchingWalletRequestRow, error)
 	FindMatchingWalletRequestByUTR(ctx context.Context, transactionID pgtype.Text) (FindMatchingWalletRequestByUTRRow, error)
 	GenerateAPIKey(ctx context.Context, arg GenerateAPIKeyParams) error
+	GetActiveCatalogServices(ctx context.Context) ([]PabloCatalog, error)
+	GetActiveSmmProviders(ctx context.Context) ([]SmmProvider, error)
 	GetAdminOrders(ctx context.Context, arg GetAdminOrdersParams) ([]GetAdminOrdersRow, error)
+	GetAllCatalogServices(ctx context.Context) ([]PabloCatalog, error)
 	GetAllMoneyTransactions(ctx context.Context, userID pgtype.Int4) ([]GetAllMoneyTransactionsRow, error)
 	GetAllServiceOverrides(ctx context.Context) ([]GetAllServiceOverridesRow, error)
 	GetAllSettings(ctx context.Context) ([]GetAllSettingsRow, error)
+	GetCatalogService(ctx context.Context, id int32) (PabloCatalog, error)
 	GetDepositStatus(ctx context.Context, arg GetDepositStatusParams) (pgtype.Text, error)
 	GetOrderForCancel(ctx context.Context, arg GetOrderForCancelParams) (GetOrderForCancelRow, error)
 	GetOrderForRefundAdmin(ctx context.Context, id int32) (GetOrderForRefundAdminRow, error)
@@ -51,11 +58,12 @@ type Querier interface {
 	GetRecentMoneyTransactions(ctx context.Context, userID pgtype.Int4) ([]GetRecentMoneyTransactionsRow, error)
 	GetSetting(ctx context.Context, key string) (string, error)
 	GetSingleOrder(ctx context.Context, arg GetSingleOrderParams) (GetSingleOrderRow, error)
+	GetSmmProviderByKey(ctx context.Context, key string) (SmmProvider, error)
 	GetUnmatchedUPINotification(ctx context.Context, utr pgtype.Text) (GetUnmatchedUPINotificationRow, error)
 	GetUserAdmin(ctx context.Context, id int32) (GetUserAdminRow, error)
 	GetUserByAPIKey(ctx context.Context, apiKey pgtype.Text) (GetUserByAPIKeyRow, error)
 	GetUserDataForMe(ctx context.Context, id int32) (GetUserDataForMeRow, error)
-	GetUserForLogin(ctx context.Context, email pgtype.Text) (GetUserForLoginRow, error)
+	GetUserForLogin(ctx context.Context, lower string) (GetUserForLoginRow, error)
 	GetUserOrdersAdmin(ctx context.Context, userID int32) ([]GetUserOrdersAdminRow, error)
 	GetUserProfile(ctx context.Context, email pgtype.Text) (GetUserProfileRow, error)
 	GetUserTransactionsAdmin(ctx context.Context, userID pgtype.Int4) ([]GetUserTransactionsAdminRow, error)
@@ -74,11 +82,13 @@ type Querier interface {
 	InsertUPINotificationUnmatched(ctx context.Context, arg InsertUPINotificationUnmatchedParams) error
 	InsertWalletRequest(ctx context.Context, arg InsertWalletRequestParams) (int32, error)
 	ListPendingOrderRequests(ctx context.Context) ([]ListPendingOrderRequestsRow, error)
+	ListSmmProvidersAdmin(ctx context.Context) ([]SmmProvider, error)
 	ListWalletRequestsAdmin(ctx context.Context) ([]ListWalletRequestsAdminRow, error)
 	MarkUPINotificationMatched(ctx context.Context, arg MarkUPINotificationMatchedParams) error
 	RejectWalletRequest(ctx context.Context, id int32) error
 	UpdateAPIOrderStatusFailed(ctx context.Context, id int32) error
 	UpdateAPIOrderStatusSubmitted(ctx context.Context, arg UpdateAPIOrderStatusSubmittedParams) error
+	UpdateCatalogService(ctx context.Context, arg UpdateCatalogServiceParams) (PabloCatalog, error)
 	UpdateCryptomusTransactionID(ctx context.Context, arg UpdateCryptomusTransactionIDParams) error
 	UpdateDepositUTR(ctx context.Context, arg UpdateDepositUTRParams) (int64, error)
 	UpdateGoogleInfo(ctx context.Context, arg UpdateGoogleInfoParams) error
@@ -91,14 +101,10 @@ type Querier interface {
 	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) error
 	UpdateProfile(ctx context.Context, arg UpdateProfileParams) error
 	UpdateUser(ctx context.Context, arg UpdateUserParams) error
-	DeleteSmmProvider(ctx context.Context, id int32) error
-	GetActiveSmmProviders(ctx context.Context) ([]SmmProvider, error)
-	GetSmmProviderByKey(ctx context.Context, key string) (SmmProvider, error)
-	ListSmmProvidersAdmin(ctx context.Context) ([]SmmProvider, error)
-	UpsertSmmProvider(ctx context.Context, arg UpsertSmmProviderParams) (SmmProvider, error)
 	UpdateWalletRequestStatusAndTxn(ctx context.Context, arg UpdateWalletRequestStatusAndTxnParams) error
 	UpsertServiceOverride(ctx context.Context, arg UpsertServiceOverrideParams) error
 	UpsertSetting(ctx context.Context, arg UpsertSettingParams) error
+	UpsertSmmProvider(ctx context.Context, arg UpsertSmmProviderParams) (SmmProvider, error)
 	UpsertWalletBalance(ctx context.Context, arg UpsertWalletBalanceParams) error
 }
 

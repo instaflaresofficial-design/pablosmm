@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"pablosmm/backend/internal/config"
 	"pablosmm/backend/internal/db"
-	"pablosmm/backend/internal/service/fx"
+	"pablosmm/backend/internal/provider"
 	"regexp"
 	"strconv"
 	"strings"
@@ -85,14 +85,13 @@ type NormalizedSmmService struct {
 type ProviderService struct {
 	db         *db.DB
 	cfg        *config.Config
-	fx         *fx.FXService
 	mu         sync.RWMutex
 	cache      []NormalizedSmmService
 	lastUpdate time.Time
 }
 
-func New(database *db.DB, cfg *config.Config, fxSvc *fx.FXService) *ProviderService {
-	return &ProviderService{db: database, cfg: cfg, fx: fxSvc}
+func New(database *db.DB, cfg *config.Config) *ProviderService {
+	return &ProviderService{db: database, cfg: cfg}
 }
 
 // Regex definitions for detection (ported from original TypeScript)
@@ -208,8 +207,8 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 	} else {
 		// Fallback to default env provider if DB table is empty
 		targets = append(targets, ProviderTarget{
-			Key:      "topsmm",
-			Name:     "TOPSMM",
+			Key:      provider.DefaultKey,
+			Name:     provider.DefaultName,
 			ApiUrl:   s.cfg.SMMAPIURL,
 			ApiKey:   s.cfg.SMMAPIKey,
 			Currency: s.cfg.SmmCurrency,
@@ -257,443 +256,124 @@ func (s *ProviderService) FetchServices() ([]NormalizedSmmService, error) {
 		})
 	}
 
-	// Fetch overrides from DB
-	overrides := make(map[string]struct {
-		DisplayName         string
-		DisplayDesc         string
-		Multiplier          float64
-		IsHidden            bool
-		Category            string
-		Tags                []string
-		ProviderCategory    string
-		PurchaseCount       int
-		DisplayID           string
-		Refill              *bool
-		Cancel              *bool
-		Dripfeed            *bool
-		ServiceType         *string
-		Targeting           *string
-		Quality             *string
-		Stability           *string
-		RefillLimit         int
-		CustomInputRequired bool
-		CustomInputLabel    string
-	})
-
-	rows, err := s.db.Queries.GetAllServiceOverrides(context.Background())
-	if err != nil {
-		log.Printf("ERROR: Query service_overrides failed: %v", err)
-	} else {
-		for _, row := range rows {
-			displayName := ""
-			if row.DisplayName.Valid {
-				displayName = row.DisplayName.String
-			}
-			displayDesc := ""
-			if row.DisplayDescription.Valid {
-				displayDesc = row.DisplayDescription.String
-			}
-			category := ""
-			if row.Category.Valid {
-				category = row.Category.String
-			}
-			providerCategory := ""
-			if row.ProviderCategory.Valid {
-				providerCategory = row.ProviderCategory.String
-			}
-			displayID := ""
-			if row.DisplayID.Valid {
-				displayID = row.DisplayID.String
-			}
-
-			var refill, cancel, dripfeed *bool
-			if row.Refill.Valid {
-				b := row.Refill.Bool
-				refill = &b
-			}
-			if row.Cancel.Valid {
-				b := row.Cancel.Bool
-				cancel = &b
-			}
-			if row.Dripfeed.Valid {
-				b := row.Dripfeed.Bool
-				dripfeed = &b
-			}
-
-			var stype, targeting, quality, stability *string
-			if row.ServiceType.Valid {
-				s := row.ServiceType.String
-				stype = &s
-			}
-			if row.Targeting.Valid {
-				s := row.Targeting.String
-				targeting = &s
-			}
-			if row.Quality.Valid {
-				s := row.Quality.String
-				quality = &s
-			}
-			if row.Stability.Valid {
-				s := row.Stability.String
-				stability = &s
-			}
-
-			tags := row.Tags
-			if tags == nil {
-				tags = []string{}
-			}
-
-			customRequired := false
-			if row.CustomInputRequired.Valid {
-				customRequired = row.CustomInputRequired.Bool
-			}
-			customLabel := ""
-			if row.CustomInputLabel.Valid {
-				customLabel = row.CustomInputLabel.String
-			}
-
-			overrides[row.SourceServiceID] = struct {
-				DisplayName         string
-				DisplayDesc         string
-				Multiplier          float64
-				IsHidden            bool
-				Category            string
-				Tags                []string
-				ProviderCategory    string
-				PurchaseCount       int
-				DisplayID           string
-				Refill              *bool
-				Cancel              *bool
-				Dripfeed            *bool
-				ServiceType         *string
-				Targeting           *string
-				Quality             *string
-				Stability           *string
-				RefillLimit         int
-				CustomInputRequired bool
-				CustomInputLabel    string
-			}{
-				displayName, displayDesc, row.RateMultiplier.Float64, row.IsHidden.Bool,
-				category, tags, providerCategory, int(row.PurchaseCount.Int32), displayID,
-				refill, cancel, dripfeed, stype, targeting, quality, stability, int(row.RefillLimit.Int32),
-				customRequired, customLabel,
-			}
+		// Build live provider map
+	liveData := make(map[string]PanelV2Service)
+	for _, batch := range allFetched {
+		providerKey := batch.Provider.Key
+		for _, raw := range batch.Services {
+			fullSID := fmt.Sprintf("%s:%s", providerKey, raw.Service.String())
+			liveData[fullSID] = raw
 		}
-		log.Printf("DEBUG: Successfully loaded %d overrides from database", len(overrides))
+	}
+
+	// Fetch Catalog from DB
+	catalog, err := s.db.Queries.GetActiveCatalogServices(context.Background())
+	if err != nil {
+		log.Printf("ERROR: Query pablo_catalog failed: %v", err)
 	}
 
 	normalized := make([]NormalizedSmmService, 0)
-	for _, batch := range allFetched {
-		providerKey := batch.Provider.Key
+	for _, catSvc := range catalog {
+		providerKey := ""
+		if catSvc.ProviderID.Valid {
+			providerKey = catSvc.ProviderID.String
+		}
+		providerServiceID := ""
+		if catSvc.ProviderServiceID.Valid {
+			providerServiceID = catSvc.ProviderServiceID.String
+		}
 
-		for _, raw := range batch.Services {
-			platform := detectPlatform(raw)
-			serviceType := detectType(raw)
-			variant := detectVariant(platform, raw)
+		fullSID := fmt.Sprintf("%s:%s", providerKey, providerServiceID)
+		
+		raw, hasLive := liveData[fullSID]
+		
+		minVal := 50
+		maxVal := 10000
+		refill := false
+		cancel := false
+		dripfeed := false
+		desc := ""
+		providerCategory := ""
+		
+		if hasLive {
+			minVal = int(toNumber(raw.Min))
+			maxVal = int(toNumber(raw.Max))
+			refill = toBool(raw.Refill)
+			cancel = toBool(raw.Cancel)
+			dripfeed = toBool(raw.Dripfeed)
+			desc = raw.Description
+			providerCategory = raw.Category
+		}
 
-			providerCurr := strings.ToUpper(batch.Provider.Currency)
-			if providerCurr == "" || strings.ToLower(batch.Provider.Key) == "topsmm" || strings.Contains(strings.ToLower(batch.Provider.Name), "topsmm") {
-				providerCurr = "INR"
-			}
+		sellPrice, _ := catSvc.SellPriceInr.Float64Value()
 
-			baseRatePer1000 := toNumber(raw.Rate)
-			if providerCurr == "INR" && baseRatePer1000 > 0 {
-				baseRatePer1000 = baseRatePer1000 / s.fx.GetUsdToInr()
-			}
-			ratePer1000 := baseRatePer1000 * 1.0 // Default 1.0x multiplier
-			originalMultiplier := 1.0
+		platform := ""
+		if catSvc.Platform.Valid {
+			platform = catSvc.Platform.String
+		}
+		category := ""
+		if catSvc.Category.Valid {
+			category = catSvc.Category.String
+		}
+		variant := ""
+		if catSvc.VariantName.Valid {
+			variant = catSvc.VariantName.String
+		}
 
-			// Overrides
-			displayName := ""
-			displayDescription := ""
-			category := raw.Category
-			providerCategory := raw.Category
-			purchaseCount := 0
-			displayID := ""
-			var tags []string = []string{}
-			var overrideRefill, overrideCancel, overrideDripfeed *bool
-			isHidden := false
-			customInputRequired := false
-			customInputLabel := ""
+		n := NormalizedSmmService{
+			ID:                           fmt.Sprintf("%d", catSvc.ID), // PabloSMM Catalog ID
+			Source:                       providerKey,
+			SourceServiceID:              providerServiceID,
+			Platform:                     platform,
+			ServiceType:                  category,
+			Variant:                      variant,
+			Name:                         catSvc.Name,
+			ProviderName:                 catSvc.Name,
+			Description:                  desc,
+			Category:                     category,
+			ProviderCategory:             providerCategory,
+			DisplayName:                  catSvc.Name,
+			DisplayDescription:           desc,
+			BaseRatePer1000:              0, 
+			RatePer1000:                  sellPrice.Float64, 
+			OriginalMultiplier:           1.0,
+			ProviderCurrency:             "INR",
+			Min:                          minVal,
+			Max:                          maxVal,
+			Refill:                       refill,
+			Dripfeed:                     dripfeed,
+			Cancel:                       cancel,
+			Tags:                         []string{}, 
+			RawProviderCategory:          providerCategory,
+			PurchaseCount:                0,
+			DisplayID:                    fmt.Sprintf("%04d", catSvc.ID),
+			Raw:                          raw,
+			Targeting:                    "",
+			Quality:                      "",
+			Stability:                    "",
+			RefillLimit:                  func() int { if refill { return 3 }; return 0 }(),
+			IsHidden:                     !catSvc.IsActive.Bool,
+			Status:                       func() string { if !catSvc.IsActive.Bool { return "hidden" } else { return "active" } }(),
+			CustomInputRequired:          false,
+			CustomInputLabel:             "",
+			HasPendingProviderSubmission: false,
+			PendingProviderStatus:        "",
+			ProposedStatus:               "",
+			ProposedMin:                  0,
+			ProposedMax:                  0,
+			ProposedRefillTag:            "",
+			ProposedQuality:              "",
+			ProposedCancel:               nil,
+		}
 
-			rawSID := raw.Service.String()
-			fullSID := fmt.Sprintf("%s:%s", providerKey, rawSID)
-
-			var ov struct {
-				DisplayName         string
-				DisplayDesc         string
-				Multiplier          float64
-				IsHidden            bool
-				Category            string
-				Tags                []string
-				ProviderCategory    string
-				PurchaseCount       int
-				DisplayID           string
-				Refill              *bool
-				Cancel              *bool
-				Dripfeed            *bool
-				ServiceType         *string
-				Targeting           *string
-				Quality             *string
-				Stability           *string
-				RefillLimit         int
-				CustomInputRequired bool
-				CustomInputLabel    string
-			}
-			found := false
-
-			if o, ok := overrides[fullSID]; ok {
-				ov = o
-				found = true
-			} else if o, ok := overrides[rawSID]; ok {
-				ov = o
-				found = true
-			}
-
-			if found {
-				isHidden = ov.IsHidden
-				if ov.DisplayName != "" {
-					displayName = ov.DisplayName
-				}
-				if ov.DisplayDesc != "" {
-					displayDescription = ov.DisplayDesc
-				}
-				if ov.Multiplier > 0 {
-					ratePer1000 = baseRatePer1000 * ov.Multiplier
-					originalMultiplier = ov.Multiplier
-				}
-				if ov.Tags != nil {
-					tags = ov.Tags
-				}
-				if ov.Category != "" {
-					category = ov.Category
-					lowCat := strings.ToLower(ov.Category)
-					knownTypes := []string{"followers", "likes", "views", "comments", "shares", "repost", "votes", "saves", "reactions"}
-					for _, kt := range knownTypes {
-						if lowCat == kt {
-							serviceType = kt
-							break
-						}
-					}
-				}
-				if ov.ProviderCategory != "" {
-					providerCategory = ov.ProviderCategory
-				}
-				purchaseCount = ov.PurchaseCount
-				displayID = ov.DisplayID
-
-				if ov.Refill != nil {
-					overrideRefill = ov.Refill
-				}
-				if ov.Cancel != nil {
-					overrideCancel = ov.Cancel
-				}
-				if ov.Dripfeed != nil {
-					overrideDripfeed = ov.Dripfeed
-				}
-				if ov.ServiceType != nil && *ov.ServiceType != "" && *ov.ServiceType != "default" {
-					serviceType = *ov.ServiceType
-				}
-				customInputRequired = ov.CustomInputRequired
-				customInputLabel = ov.CustomInputLabel
-			}
-
-			// Metadata extraction logic (from overrides)
-			var targeting, quality, stability string
-			if ov.Targeting != nil {
-				targeting = *ov.Targeting
-			}
-			if ov.Quality != nil {
-				quality = *ov.Quality
-			}
-			if ov.Stability != nil {
-				stability = *ov.Stability
-			}
-
-			if platform == "" && category != "" {
-				lowCat := strings.ToLower(category)
-				if strings.Contains(lowCat, "instagram") {
-					platform = "instagram"
-				} else if strings.Contains(lowCat, "youtube") {
-					platform = "youtube"
-				} else if strings.Contains(lowCat, "facebook") {
-					platform = "facebook"
-				} else if strings.Contains(lowCat, "tiktok") {
-					platform = "tiktok"
-				} else if strings.Contains(lowCat, "telegram") {
-					platform = "telegram"
-				} else if strings.Contains(lowCat, "twitter") || strings.Contains(lowCat, " x ") {
-					platform = "x"
-				}
-			}
-
-			if platform == "" {
-				lowHay := strings.ToLower(raw.Category + " " + raw.Name)
-				if strings.Contains(lowHay, "instagram") || strings.Contains(lowHay, "ig") {
-					platform = "instagram"
-				} else if strings.Contains(lowHay, "youtube") || strings.Contains(lowHay, "yt") {
-					platform = "youtube"
-				} else if strings.Contains(lowHay, "facebook") || strings.Contains(lowHay, "fb") {
-					platform = "facebook"
-				} else if strings.Contains(lowHay, "tiktok") || strings.Contains(lowHay, "tt") {
-					platform = "tiktok"
-				} else if strings.Contains(lowHay, "telegram") || strings.Contains(lowHay, "tg") {
-					platform = "telegram"
-				} else if strings.Contains(lowHay, "twitter") || strings.Contains(lowHay, " x ") {
-					platform = "x"
-				} else if strings.Contains(lowHay, "whatsapp") || strings.Contains(lowHay, "wa") {
-					platform = "whatsapp"
-				} else if strings.Contains(lowHay, "threads") {
-					platform = "threads"
-				} else {
-					platform = "other"
-				}
-			}
-
-			if serviceType == "" {
-				lowHay := strings.ToLower(raw.Category + " " + raw.Name)
-				if strings.Contains(lowHay, "follower") || strings.Contains(lowHay, "sub") || strings.Contains(lowHay, "member") {
-					serviceType = "followers"
-				} else if strings.Contains(lowHay, "like") || strings.Contains(lowHay, "favorite") {
-					serviceType = "likes"
-				} else if strings.Contains(lowHay, "view") || strings.Contains(lowHay, "watch") || strings.Contains(lowHay, "play") {
-					serviceType = "views"
-				} else if strings.Contains(lowHay, "comment") {
-					serviceType = "comments"
-				} else if strings.Contains(lowHay, "share") || strings.Contains(lowHay, "retweet") {
-					serviceType = "shares"
-				} else if strings.Contains(lowHay, "vote") || strings.Contains(lowHay, "poll") {
-					serviceType = "votes"
-				} else if strings.Contains(lowHay, "repost") {
-					serviceType = "repost"
-				} else if strings.Contains(lowHay, "react") || strings.Contains(lowHay, "emoji") {
-					serviceType = "reactions"
-				} else if strings.Contains(lowHay, "save") {
-					serviceType = "saves"
-				} else {
-					serviceType = "other"
-				}
-			}
-
-			if displayID == "" {
-				serviceIDInt := 0
-				fmt.Sscanf(raw.Service.String(), "%d", &serviceIDInt)
-				displayID = fmt.Sprintf("%04d", (serviceIDInt*7919)%10000)
-			}
-
-			if category == raw.Category || category == "" {
-				category = serviceType
-			}
-
-			finalRefill := toBool(raw.Refill)
-			if overrideRefill != nil {
-				finalRefill = *overrideRefill
-			}
-			finalCancel := toBool(raw.Cancel)
-			if overrideCancel != nil {
-				finalCancel = *overrideCancel
-			}
-			finalDripfeed := toBool(raw.Dripfeed)
-			if overrideDripfeed != nil {
-				finalDripfeed = *overrideDripfeed
-			}
-
-			minVal := int(toNumber(raw.Min))
-			maxVal := int(toNumber(raw.Max))
-			hasPending := false
-			pendingStatus := ""
-			proposedStatus := ""
-			proposedMin := 0
-			proposedMax := 0
-			proposedRefillTag := ""
-			proposedQuality := ""
-			var proposedCancel *bool
-
-			for _, tag := range tags {
-				if strings.HasPrefix(tag, "min:") {
-					if v, err := strconv.ParseInt(strings.TrimPrefix(tag, "min:"), 10, 64); err == nil && v > 0 {
-						minVal = int(v)
-					}
-				} else if strings.HasPrefix(tag, "max:") {
-					if v, err := strconv.ParseInt(strings.TrimPrefix(tag, "max:"), 10, 64); err == nil && v > 0 {
-						maxVal = int(v)
-					}
-				} else if tag == "provider_pending:true" {
-					hasPending = true
-				} else if strings.HasPrefix(tag, "provider_status:") || strings.HasPrefix(tag, "proposed_status:") {
-					pendingStatus = strings.TrimPrefix(strings.TrimPrefix(tag, "provider_status:"), "proposed_status:")
-					proposedStatus = pendingStatus
-				} else if strings.HasPrefix(tag, "proposed_min:") {
-					if v, err := strconv.ParseInt(strings.TrimPrefix(tag, "proposed_min:"), 10, 64); err == nil && v > 0 {
-						proposedMin = int(v)
-					}
-				} else if strings.HasPrefix(tag, "proposed_max:") {
-					if v, err := strconv.ParseInt(strings.TrimPrefix(tag, "proposed_max:"), 10, 64); err == nil && v > 0 {
-						proposedMax = int(v)
-					}
-				} else if strings.HasPrefix(tag, "proposed_refill:") {
-					proposedRefillTag = strings.TrimPrefix(tag, "proposed_refill:")
-				} else if strings.HasPrefix(tag, "proposed_quality:") {
-					proposedQuality = strings.TrimPrefix(tag, "proposed_quality:")
-				} else if strings.HasPrefix(tag, "proposed_cancel:") {
-					b := strings.TrimPrefix(tag, "proposed_cancel:") == "true"
-					proposedCancel = &b
-				}
-			}
-
-			n := NormalizedSmmService{
-				ID:                           fullSID,
-				Source:                       providerKey,
-				SourceServiceID:              raw.Service.String(),
-				Platform:                     platform,
-				ServiceType:                  serviceType,
-				Variant:                      variant,
-				Name:                         raw.Name,
-				ProviderName:                 raw.Name,
-				Description:                  raw.Description,
-				Category:                     category,
-				ProviderCategory:             providerCategory,
-				DisplayName:                  displayName,
-				DisplayDescription:           displayDescription,
-				BaseRatePer1000:              baseRatePer1000,
-				RatePer1000:                  ratePer1000,
-				OriginalMultiplier:           originalMultiplier,
-				ProviderCurrency:             batch.Provider.Currency,
-				Min:                          minVal,
-				Max:                          maxVal,
-				Refill:                       finalRefill,
-				Dripfeed:                     finalDripfeed,
-				Cancel:                       finalCancel,
-				Tags:                         tags,
-				RawProviderCategory:          raw.Category,
-				PurchaseCount:                purchaseCount,
-				DisplayID:                    displayID,
-				Raw:                          raw,
-				Targeting:                    targeting,
-				Quality:                      quality,
-				Stability:                    stability,
-				RefillLimit:                  func() int { if ov.RefillLimit > 0 { return ov.RefillLimit } else if finalRefill { return 3 }; return 0 }(),
-				IsHidden:                     isHidden,
-				Status:                       func() string { if isHidden { return "hidden" } else { return "active" } }(),
-				CustomInputRequired:          customInputRequired,
-				CustomInputLabel:             customInputLabel,
-				HasPendingProviderSubmission: hasPending,
-				PendingProviderStatus:        pendingStatus,
-				ProposedStatus:               proposedStatus,
-				ProposedMin:                  proposedMin,
-				ProposedMax:                  proposedMax,
-				ProposedRefillTag:            proposedRefillTag,
-				ProposedQuality:              proposedQuality,
-				ProposedCancel:               proposedCancel,
-			}
-
+		if hasLive {
 			avgTime := int(toNumber(raw.AverageTime))
 			if avgTime > 0 {
 				n.AverageTime = &avgTime
 			}
-
-			normalized = append(normalized, n)
 		}
+
+		normalized = append(normalized, n)
 	}
 
 	s.cache = normalized
@@ -790,15 +470,36 @@ func toBool(v interface{}) bool {
 	return false
 }
 
-func (s *ProviderService) PlaceOrder(serviceID, quantity, link string) (map[string]interface{}, error) {
+
+func (s *ProviderService) getProviderCreds(providerKey string) (string, string, error) {
+	if providerKey == "" || providerKey == provider.DefaultKey {
+		return s.cfg.SMMAPIURL, s.cfg.SMMAPIKey, nil
+	}
+	dbProviders, err := s.db.Queries.GetActiveSmmProviders(context.Background())
+	if err == nil {
+		for _, p := range dbProviders {
+			if p.Key == providerKey {
+				return p.ApiUrl, p.ApiKey, nil
+			}
+		}
+	}
+	return s.cfg.SMMAPIURL, s.cfg.SMMAPIKey, nil
+}
+
+func (s *ProviderService) PlaceOrder(providerKey, serviceID, quantity, link string) (map[string]interface{}, error) {
+	apiURL, apiKey, err := s.getProviderCreds(providerKey)
+	if err != nil {
+		return nil, err
+	}
+
 	formData := url.Values{}
-	formData.Set("key", s.cfg.SMMAPIKey)
+	formData.Set("key", apiKey)
 	formData.Set("action", "add")
 	formData.Set("service", serviceID)
-	formData.Set("quantity", quantity)
 	formData.Set("link", link)
+	formData.Set("quantity", quantity)
 
-	resp, err := http.PostForm(s.cfg.SMMAPIURL, formData)
+	resp, err := http.PostForm(apiURL, formData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to place order: %v", err)
 	}
@@ -806,46 +507,28 @@ func (s *ProviderService) PlaceOrder(serviceID, quantity, link string) (map[stri
 
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode order response: %v", err)
+		return nil, fmt.Errorf("failed to decode SMM response: %v", err)
+	}
+
+	if errorMsg, ok := result["error"].(string); ok {
+		return nil, fmt.Errorf("SMM Provider Error: %s", errorMsg)
 	}
 
 	return result, nil
 }
 
-// GetOrderStatus fetches the status of multiple orders
-func (s *ProviderService) GetOrderStatus(orderIDs []string) (map[string]interface{}, error) {
-	formData := url.Values{}
-	formData.Set("key", s.cfg.SMMAPIKey)
-	formData.Set("action", "status")
-	formData.Set("orders", strings.Join(orderIDs, ","))
-
-	resp, err := http.PostForm(s.cfg.SMMAPIURL, formData)
+func (s *ProviderService) CancelOrder(providerKey, orderID string) (map[string]interface{}, error) {
+	apiURL, apiKey, err := s.getProviderCreds(providerKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch order status: %v", err)
+		return nil, err
 	}
-	defer resp.Body.Close()
-
-	// Response is usually a map of orderID -> status object
-	// Or sometimes a list if single order.
-	// But standard API V2 for "orders" param returns an object where keys are order IDs.
-	// Let's assume standard JAP/SmartPanel response.
-
-	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode status response: %v", err)
-	}
-
-	return result, nil
-}
-
-// CancelOrder attempts to cancel an order on the provider side
-func (s *ProviderService) CancelOrder(orderID string) (map[string]interface{}, error) {
+	
 	formData := url.Values{}
-	formData.Set("key", s.cfg.SMMAPIKey)
+	formData.Set("key", apiKey)
 	formData.Set("action", "cancel")
 	formData.Set("order", orderID)
 
-	resp, err := http.PostForm(s.cfg.SMMAPIURL, formData)
+	resp, err := http.PostForm(apiURL, formData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to cancel order: %v", err)
 	}
@@ -859,14 +542,18 @@ func (s *ProviderService) CancelOrder(orderID string) (map[string]interface{}, e
 	return result, nil
 }
 
-// RefillOrder attempts to refill an order on the provider side
-func (s *ProviderService) RefillOrder(orderID string) (map[string]interface{}, error) {
+func (s *ProviderService) RefillOrder(providerKey, orderID string) (map[string]interface{}, error) {
+	apiURL, apiKey, err := s.getProviderCreds(providerKey)
+	if err != nil {
+		return nil, err
+	}
+	
 	formData := url.Values{}
-	formData.Set("key", s.cfg.SMMAPIKey)
+	formData.Set("key", apiKey)
 	formData.Set("action", "refill")
 	formData.Set("order", orderID)
 
-	resp, err := http.PostForm(s.cfg.SMMAPIURL, formData)
+	resp, err := http.PostForm(apiURL, formData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to refill order: %v", err)
 	}
@@ -875,6 +562,31 @@ func (s *ProviderService) RefillOrder(orderID string) (map[string]interface{}, e
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode refill response: %v", err)
+	}
+
+	return result, nil
+}
+
+func (s *ProviderService) GetOrderStatus(providerKey string, orderIDs []string) (map[string]interface{}, error) {
+	apiURL, apiKey, err := s.getProviderCreds(providerKey)
+	if err != nil {
+		return nil, err
+	}
+
+	formData := url.Values{}
+	formData.Set("key", apiKey)
+	formData.Set("action", "status")
+	formData.Set("orders", strings.Join(orderIDs, ","))
+
+	resp, err := http.PostForm(apiURL, formData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch order status: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode status response: %v", err)
 	}
 
 	return result, nil

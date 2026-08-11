@@ -128,7 +128,7 @@ func (q *Queries) GetAdminOrders(ctx context.Context, arg GetAdminOrdersParams) 
 }
 
 const getOrderForCancel = `-- name: GetOrderForCancel :one
-SELECT status, amount_cents, COALESCE(provider_order_id, '')::text as provider_order_id 
+SELECT status, amount_cents, COALESCE(provider_order_id, '')::text as provider_order_id, COALESCE(provider_key, '')::text as provider_key
 FROM orders 
 WHERE id=$1 AND user_id=$2 
 FOR UPDATE
@@ -143,17 +143,23 @@ type GetOrderForCancelRow struct {
 	Status          string `json:"status"`
 	AmountCents     int32  `json:"amount_cents"`
 	ProviderOrderID string `json:"provider_order_id"`
+	ProviderKey     string `json:"provider_key"`
 }
 
 func (q *Queries) GetOrderForCancel(ctx context.Context, arg GetOrderForCancelParams) (GetOrderForCancelRow, error) {
 	row := q.db.QueryRow(ctx, getOrderForCancel, arg.ID, arg.UserID)
 	var i GetOrderForCancelRow
-	err := row.Scan(&i.Status, &i.AmountCents, &i.ProviderOrderID)
+	err := row.Scan(
+		&i.Status,
+		&i.AmountCents,
+		&i.ProviderOrderID,
+		&i.ProviderKey,
+	)
 	return i, err
 }
 
 const getOrderForRefundAdmin = `-- name: GetOrderForRefundAdmin :one
-SELECT status, amount_cents, COALESCE(refunded_amount, 0)::int as refunded_amount, user_id 
+SELECT status, amount_cents, COALESCE(refunded_amount, 0)::int as refunded_amount, user_id, COALESCE(provider_key, '')::text as provider_key 
 FROM orders WHERE id = $1 FOR UPDATE
 `
 
@@ -162,6 +168,7 @@ type GetOrderForRefundAdminRow struct {
 	AmountCents    int32  `json:"amount_cents"`
 	RefundedAmount int32  `json:"refunded_amount"`
 	UserID         int32  `json:"user_id"`
+	ProviderKey    string `json:"provider_key"`
 }
 
 func (q *Queries) GetOrderForRefundAdmin(ctx context.Context, id int32) (GetOrderForRefundAdminRow, error) {
@@ -172,6 +179,7 @@ func (q *Queries) GetOrderForRefundAdmin(ctx context.Context, id int32) (GetOrde
 		&i.AmountCents,
 		&i.RefundedAmount,
 		&i.UserID,
+		&i.ProviderKey,
 	)
 	return i, err
 }
@@ -344,8 +352,8 @@ func (q *Queries) GetSingleOrder(ctx context.Context, arg GetSingleOrderParams) 
 }
 
 const insertOrder = `-- name: InsertOrder :one
-INSERT INTO orders (user_id, service_id, amount_cents, quantity, link, status, provider_order_id, provider_resp, refills_remaining)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO orders (user_id, service_id, amount_cents, quantity, link, status, provider_order_id, provider_resp, refills_remaining, provider_key)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING id
 `
 
@@ -359,6 +367,7 @@ type InsertOrderParams struct {
 	ProviderOrderID  pgtype.Text `json:"provider_order_id"`
 	ProviderResp     []byte      `json:"provider_resp"`
 	RefillsRemaining pgtype.Int4 `json:"refills_remaining"`
+	ProviderKey      pgtype.Text `json:"provider_key"`
 }
 
 func (q *Queries) InsertOrder(ctx context.Context, arg InsertOrderParams) (int32, error) {
@@ -372,6 +381,7 @@ func (q *Queries) InsertOrder(ctx context.Context, arg InsertOrderParams) (int32
 		arg.ProviderOrderID,
 		arg.ProviderResp,
 		arg.RefillsRemaining,
+		arg.ProviderKey,
 	)
 	var id int32
 	err := row.Scan(&id)

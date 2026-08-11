@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"pablosmm/backend/internal/config"
 	"pablosmm/backend/internal/db"
-	"pablosmm/backend/internal/service/fx"
 	"pablosmm/backend/internal/service/metadata"
 	"pablosmm/backend/internal/service/smm"
 	"strconv"
@@ -26,16 +25,14 @@ type Handler struct {
 	db       *db.DB
 	cfg      *config.Config
 	smm      *smm.ProviderService
-	fx       *fx.FXService
 	metadata *metadata.Service
 }
 
-func New(database *db.DB, cfg *config.Config, fxSvc *fx.FXService, metaSvc *metadata.Service) *Handler {
+func New(database *db.DB, cfg *config.Config, smmSvc *smm.ProviderService, metaSvc *metadata.Service) *Handler {
 	return &Handler{
 		db:       database,
 		cfg:      cfg,
-		smm:      smm.New(database, cfg, fxSvc),
-		fx:       fxSvc,
+		smm:      smmSvc,
 		metadata: metaSvc,
 	}
 }
@@ -48,6 +45,13 @@ func (h *Handler) GetServices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.URL.Query().Get("all") == "true" {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"services": services,
+		})
+		return
+	}
+
 	activeServices := make([]smm.NormalizedSmmService, 0)
 	for _, s := range services {
 		if !s.IsHidden {
@@ -56,24 +60,14 @@ func (h *Handler) GetServices(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("DEBUG: GetServices returned %d active services out of %d total", len(activeServices), len(services))
 
-	fxRate := h.fx.GetUsdToInr()
-
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"services": activeServices,
-		"fxRate":   fxRate,
 	})
 }
 
 func (h *Handler) RefreshServices(w http.ResponseWriter, r *http.Request) {
 	h.smm.InvalidateCache()
 	json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Cache invalidated"})
-}
-
-func (h *Handler) GetFX(w http.ResponseWriter, r *http.Request) {
-	rate := h.fx.GetUsdToInr()
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"usd_to_inr": rate,
-	})
 }
 
 func (h *Handler) GetMetadata(w http.ResponseWriter, r *http.Request) {
@@ -416,11 +410,8 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Calculate Cost
-	// RatePer1000 is in USD. Wallet is in INR (Paisa).
-	rateUSD := selectedService.RatePer1000
-	fxRate := h.fx.GetUsdToInr()
-	rateINR := rateUSD * fxRate
-
+	// RatePer1000 is in INR (from catalog). Wallet is in INR (Paisa).
+	rateINR := selectedService.RatePer1000
 	totalINR := (rateINR * float64(body.Quantity)) / 1000.0
 	amountCents := int(totalINR * 100) // Convert to Paisa
 
@@ -463,6 +454,7 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		Status:           "pending",
 		Link:             pgtype.Text{String: body.Link, Valid: true},
 		RefillsRemaining: pgtype.Int4{Int32: int32(selectedService.RefillLimit), Valid: true},
+		ProviderKey:      pgtype.Text{String: selectedService.Source, Valid: true},
 	})
 	if err != nil {
 		http.Error(w, "Failed to create order", http.StatusInternalServerError)
@@ -477,7 +469,7 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	// 4. Update sales count - Moved to after provider success to consolidate DB updates
 
 	// 5. Forward to SMM Provider
-	resp, placeErr := h.smm.PlaceOrder(body.SourceServiceID, strconv.Itoa(body.Quantity), body.Link)
+	resp, placeErr := h.smm.PlaceOrder(selectedService.Source, body.SourceServiceID, strconv.Itoa(body.Quantity), body.Link)
 
 	// Check for provider Error (API failure or Logic failure)
 	var providerError string

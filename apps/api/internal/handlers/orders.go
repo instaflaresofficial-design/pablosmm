@@ -196,7 +196,7 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 
 	if providerOrderID != "" {
 		var providerRespJSON string
-		resp, err := h.smm.CancelOrder(providerOrderID)
+		resp, err := h.smm.CancelOrder(orderRow.ProviderKey, providerOrderID)
 		if err == nil && resp != nil {
 			log.Printf("Provider cancel response for #%s: %v", providerOrderID, resp)
 			b, _ := json.Marshal(resp)
@@ -306,7 +306,7 @@ func (h *Handler) RefillOrder(w http.ResponseWriter, r *http.Request) {
 
 	var providerRespJSON string
 	if providerOrderID != "" {
-		resp, err := h.smm.RefillOrder(providerOrderID)
+		resp, err := h.smm.RefillOrder(orderRow.ProviderKey, providerOrderID)
 		if err == nil && resp != nil {
 			log.Printf("Provider refill response for #%s: %v", providerOrderID, resp)
 			b, _ := json.Marshal(resp)

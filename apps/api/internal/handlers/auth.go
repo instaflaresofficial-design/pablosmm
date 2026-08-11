@@ -138,7 +138,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Find by email OR username
-	userRow, err := h.db.Queries.GetUserForLogin(context.Background(), pgtype.Text{String: req.Login, Valid: true})
+	userRow, err := h.db.Queries.GetUserForLogin(context.Background(), req.Login)
 	user.ID = int(userRow.ID)
 	user.PasswordHash = userRow.PasswordHash.String
 	user.Role = userRow.Role
@@ -273,9 +273,6 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		// Don't fail the response, just zero stats
 	}
 
-	// Get current FX rate
-	fxRate := h.fx.GetUsdToInr()
-
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"user": map[string]interface{}{
 			"id":          u.ID,
@@ -291,7 +288,6 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 			"stats":       stats,
 			"hasPassword": passwordHash != "",
 		},
-		"fxRate": fxRate,
 	})
 }
 
@@ -610,21 +606,28 @@ func (h *Handler) AdminLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userRow, err := h.db.Queries.GetUserForLogin(context.Background(), pgtype.Text{String: loginStr, Valid: true})
+	log.Printf("🔑 [AdminLogin] Login attempt for: '%s'", loginStr)
+
+	userRow, err := h.db.Queries.GetUserForLogin(context.Background(), loginStr)
 	if err != nil {
+		log.Printf("❌ [AdminLogin] User not found for login '%s': %v", loginStr, err)
 		http.Error(w, "Invalid Admin ID or Password", http.StatusUnauthorized)
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(userRow.PasswordHash.String), []byte(req.Password)); err != nil {
+		log.Printf("❌ [AdminLogin] Password mismatch for user ID %d (%s)", userRow.ID, loginStr)
 		http.Error(w, "Invalid Admin ID or Password", http.StatusUnauthorized)
 		return
 	}
 
 	if userRow.Role != "admin" {
+		log.Printf("❌ [AdminLogin] User ID %d (%s) has role '%s', not 'admin'", userRow.ID, loginStr, userRow.Role)
 		http.Error(w, "Access Denied: Account does not have admin privileges", http.StatusForbidden)
 		return
 	}
+
+	log.Printf("✅ [AdminLogin] Successful admin login for user ID %d (%s)", userRow.ID, loginStr)
 
 	expirationTime := time.Now().Add(24 * time.Hour * 7)
 	claims := &Claims{
@@ -682,34 +685,43 @@ func (h *Handler) EnsureDefaultAdminUser() {
 		return
 	}
 
-	var adminID int32
-	// Upsert master admin user by email
+	// 1. Try to find existing user by username or email
+	var existingID int32
 	err = h.db.Pool.QueryRow(context.Background(),
-		`INSERT INTO users (name, email, username, password_hash, role)
-		 VALUES ('Administrator', $1, $2, $3, 'admin')
-		 ON CONFLICT (email) DO UPDATE SET 
-		     username = EXCLUDED.username,
-		     password_hash = EXCLUDED.password_hash,
-		     role = 'admin'
-		 RETURNING id`,
-		adminEmail, adminUsername, string(hashedPassword),
-	).Scan(&adminID)
+		"SELECT id FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($2) LIMIT 1",
+		adminUsername, adminEmail,
+	).Scan(&existingID)
 
-	if err != nil {
-		// Fallback: try update by username if username conflict exists
-		err = h.db.Pool.QueryRow(context.Background(),
-			`UPDATE users SET password_hash = $1, role = 'admin', email = $2 WHERE LOWER(username) = LOWER($3) RETURNING id`,
-			string(hashedPassword), adminEmail, adminUsername,
-		).Scan(&adminID)
-	}
-
-	if err != nil {
-		log.Printf("ERROR: Failed to guarantee master admin user: %v", err)
+	if err == nil && existingID > 0 {
+		// Update password and ensure role is admin
+		_, err = h.db.Pool.Exec(context.Background(),
+			"UPDATE users SET role = 'admin', password_hash = $1, username = $2, email = $3 WHERE id = $4",
+			string(hashedPassword), adminUsername, adminEmail, existingID,
+		)
+		if err != nil {
+			log.Printf("⚠️ Warning updating existing admin account ID %d: %v", existingID, err)
+		} else {
+			log.Printf("🔒 Master Admin Account Active (ID: %d | Username: %s | Email: %s)", existingID, adminUsername, adminEmail)
+		}
 		return
 	}
 
-	h.db.Pool.Exec(context.Background(), "INSERT INTO wallets (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING", adminID)
-	log.Printf("🔒 Master Admin Account Active (Username: %s | Email: %s | Password: %s)", adminUsername, adminEmail, adminPassword)
+	// 2. Insert new admin user if not found
+	var newAdminID int32
+	err = h.db.Pool.QueryRow(context.Background(),
+		`INSERT INTO users (name, email, username, password_hash, role)
+		 VALUES ('Administrator', $1, $2, $3, 'admin')
+		 RETURNING id`,
+		adminEmail, adminUsername, string(hashedPassword),
+	).Scan(&newAdminID)
+
+	if err != nil {
+		log.Printf("ERROR: Failed to create master admin user: %v", err)
+		return
+	}
+
+	h.db.Pool.Exec(context.Background(), "INSERT INTO wallets (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING", newAdminID)
+	log.Printf("🔒 Master Admin Account Created (ID: %d | Username: %s | Email: %s)", newAdminID, adminUsername, adminEmail)
 }
 
 func getEnvOrDefault(key, fallback string) string {

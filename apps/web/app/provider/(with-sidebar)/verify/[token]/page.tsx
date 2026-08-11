@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 async function getServices(): Promise<ServiceItem[]> {
   try {
     const baseUrl = getApiBaseUrl();
-    const res = await fetch(`${baseUrl}/admin/services`, {
+    const res = await fetch(`${baseUrl}/services?all=true`, {
       cache: "no-store",
     });
     if (!res.ok) throw new Error("Failed to fetch services");

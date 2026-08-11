@@ -65,11 +65,11 @@ export default function ServiceInfo({ services, index = 0, onChangeIndex, servic
   // Derived fields with fallbacks: prefer NormalizedSmmService values, then raw payload
   const rate = current ? (current.ratePer1000 ?? getRawNumber(['ratePer1000', 'rate', 'price', 'cost'])) : 0.4;
   const refillFlag = current?.refill ?? getRawBool(['refill', 'has_refill', 'guarantee', 'lifetime_refill', 'refilled']) ?? false;
-  const refillText = refillFlag ? 'Available' : 'Not Available';
   const cancelFlag = current?.cancel ?? getRawBool(['cancel', 'cancellable', 'can_cancel', 'refundable']) ?? false;
   const cancelText = cancelFlag ? 'Available' : 'Not Available';
   const avgTime = current?.averageTime ?? getRawNumber(['averageTime', 'avg_time', 'average_time', 'start', 'start_time', 'estimated_time']) ?? null;
-  const hay = `${current?.providerName || ''} ${description} ${getRawString(['country', 'target', 'targets', 'location']) || ''}`.toLowerCase();
+  const hayOriginal = `${current?.providerName || ''}\n${description}\n${getRawString(['country', 'target', 'targets', 'location']) || ''}`;
+  const hay = hayOriginal.toLowerCase();
   const renderFormattedText = (text: string) => {
     if (!text) return null;
     // Handle **bold**
@@ -113,7 +113,7 @@ export default function ServiceInfo({ services, index = 0, onChangeIndex, servic
    */
   function extractKeyValue(text: string, keys: string[]): string | null {
     for (const key of keys) {
-      const pattern = new RegExp(`(?:^|\\n)\\s*(?:[🔗⏱✅♻️🇪🇸🇮🇳🇺🇸🚀]\\s*)?${key}\\s*[:|-]\\s*([^\\n]+)`, 'im');
+      const pattern = new RegExp(`(?:^|\\n)\\s*(?:[^a-zA-Z0-9_]*\\s*)?${key}\\s*[:|-]\\s*([^\\n]+)`, 'im');
       const match = text.match(pattern);
       if (match && match[1]) {
         return match[1].trim();
@@ -184,13 +184,9 @@ export default function ServiceInfo({ services, index = 0, onChangeIndex, servic
   /**
    * Extract quality with priority for explicit patterns
    */
-  function extractQualityEnhanced(text: string): string {
-    const explicit = extractKeyValue(text, ['Quality']);
-    if (explicit) {
-      if (/100%|real|organic|active/i.test(explicit)) return 'Real';
-      if (/high|hq/i.test(explicit)) return 'High';
-      if (/premium|vip/i.test(explicit)) return 'Premium';
-    }
+  function extractQualityEnhanced(text: string, originalText: string): string {
+    const explicit = extractKeyValue(originalText, ['Quality']);
+    if (explicit) return explicit;
 
     // Fallback to text analysis
     const t = text.toLowerCase();
@@ -223,16 +219,26 @@ export default function ServiceInfo({ services, index = 0, onChangeIndex, servic
   }
 
   /**
-   * Classify speed
+   * Classify speed using minutes first with platform-aware thresholds, falling back to text regex
    */
-  function extractSpeed(minutes: number | null, text: string): string {
-    if (/instant|immediate|0\s*[-–]\s*\d+\s*min/i.test(text)) return 'Instant';
-    if (minutes != null && minutes <= 10) return 'Instant';
-    if (minutes != null && minutes <= 60) return 'Fast';
-    if (minutes != null && minutes <= 360) return 'Medium';
-    if (minutes != null) return 'Slow';
+  function extractSpeed(minutes: number | null, text: string, platform?: string): string {
+    const p = (platform || '').toLowerCase();
+    const isYoutube = p === 'youtube';
+    const thresholds = isYoutube ? { fast: 120, normal: 720, slow: 2880 } : { fast: 30, normal: 120, slow: 720 };
+
+    if (minutes != null && !isNaN(Number(minutes)) && Number(minutes) > 0) {
+      const m = Number(minutes);
+      if (m <= 10) return 'Instant';
+      if (m <= thresholds.fast) return 'Fast';
+      if (m <= thresholds.normal) return 'Normal';
+      if (m <= thresholds.slow) return 'Slow';
+      return 'Unstable';
+    }
+
+    // Fallback to text matching ONLY when minutes is missing or zero
+    if (/\bslow|delayed\b/i.test(text)) return 'Slow';
+    if (/0\s*[-–]\s*10\s*min|instant\s*start|immediate/i.test(text)) return 'Instant';
     if (/fast|quick|rapid/i.test(text)) return 'Fast';
-    if (/slow|delayed/i.test(text)) return 'Slow';
     return 'Normal';
   }
 
@@ -252,18 +258,19 @@ export default function ServiceInfo({ services, index = 0, onChangeIndex, servic
     return 'Standard';
   }
 
-  const speedLabel = extractSpeed(avgTime, hay);
-  const qualityLabel = current?.quality || extractQualityEnhanced(hay);
-  // Prefer raw country/target if provided
+  const speedLabel = extractSpeed(avgTime, hay, current?.platform);
+  
+  const qualityLabel = current?.quality || extractQualityEnhanced(hay, hayOriginal);
+  
   const targetingFromRaw = getRawString(['country', 'target', 'targets', 'location']);
-  const targetingLabel = current?.targeting || (targetingFromRaw ? targetingFromRaw : extractLocation(hay));
+  const targetingLabel = current?.targeting || targetingFromRaw || extractLocation(hay);
 
   const refillPeriod = extractRefillPeriod(hay);
-  // User requested to use API flag strictly for Refill card
-  // const refillText = refillPeriod ? refillPeriod : (refillFlag ? 'Available' : 'Not Available');
+  const explicitRefill = extractKeyValue(hayOriginal, ['Refill', 'Guarantee']);
+  const refillText = explicitRefill || refillPeriod || (refillFlag ? 'Available' : 'Not Available');
 
-  // Stability shows drop nature OR refill period if specialized
-  const stabilityLabel = current?.stability || (extractStability(hay, !!refillFlag) === 'Stable' && refillPeriod
+  const explicitDrop = extractKeyValue(hayOriginal, ['Drop', 'Stability']);
+  const stabilityLabel = explicitDrop || current?.stability || (extractStability(hay, !!refillFlag) === 'Stable' && refillPeriod
     ? `Refill: ${refillPeriod}`
     : extractStability(hay, !!refillFlag));
 
@@ -279,8 +286,7 @@ export default function ServiceInfo({ services, index = 0, onChangeIndex, servic
     return `${m} min`;
   }
 
-  // Extract explicit start time from description if avgTime isn't available
-  const explicitStart = extractKeyValue(hay, ['Start Time', 'Start', 'Time']);
+  const explicitStart = extractKeyValue(hayOriginal, ['Start Time', 'Start', 'Time']);
   const normalizedStart = explicitStart ? normalizeTimeString(explicitStart) : null;
 
   const formattedAvgTime = avgTime ? formatDuration(avgTime) : (normalizedStart || (speedLabel === 'Instant' ? 'Instant' : 'N/A'));

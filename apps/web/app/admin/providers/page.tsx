@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Server, Trash2, Edit3, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
+import { Plus, Server, Trash2, Edit3, CheckCircle2, XCircle, RefreshCw, Link2, ExternalLink, Copy, Sparkles } from "lucide-react";
+import { getProviderTokenKey } from "@/lib/provider-tokens";
 
 import { apiClient } from "@/lib/apiClient";
 import { Button } from "@/components/admin/ui/button";
@@ -59,6 +60,20 @@ export default function ProvidersPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getVerificationV3Url = (providerKey: string) => {
+    const token = getProviderTokenKey(providerKey);
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    return `${origin}/provider/verify-v3/${token}`;
+  };
+
+  const copyVerificationV3Link = (provider: SmmProvider) => {
+    const url = getVerificationV3Url(provider.key);
+    navigator.clipboard.writeText(url);
+    toast.success(`Copied V3 Working Services Portal link for ${provider.name}!`, {
+      description: url,
+    });
   };
 
   const handleOpenDialog = (provider?: SmmProvider) => {
@@ -254,7 +269,28 @@ export default function ProvidersPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 self-end sm:self-center">
+                  <div className="flex flex-wrap items-center gap-2 self-end sm:self-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => copyVerificationV3Link(p)}
+                      className="gap-1.5 text-xs font-semibold border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                      title="Copy V3 Clean Working Services Picker Portal link"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+                      Copy V3 Link
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      asChild
+                      className="h-8 w-8 p-0"
+                      title="Open V3 Working Services Picker portal in new tab"
+                    >
+                      <a href={getVerificationV3Url(p.key)} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-4 w-4 text-emerald-500 hover:text-foreground" />
+                      </a>
+                    </Button>
                     <Button
                       variant={p.is_active ? "outline" : "default"}
                       size="sm"

@@ -41,7 +41,7 @@ const getServiceIcon = (type: string) => {
 
 const Hero = () => {
   const [activePlatform, setActivePlatform] = useState('youtube');
-  const { services, fxRate } = useNormalizedServices();
+  const { services } = useNormalizedServices();
 
   const getPlatformInfo = (id: string) => PLATFORMS.find(p => p.id === id) || PLATFORMS[0];
   const activeServices = Array.from(
@@ -126,7 +126,7 @@ const Hero = () => {
                       <PlatformIcon color="rgb(130, 128, 126)" size={13} /> <span>{getPlatformInfo(activePlatform).name}</span>
                     </div>
                     <div className="service-price">
-                      <span className="price">₹{(service.ratePer1000 * fxRate).toFixed(2)}</span>
+                      <span className="price">₹{service.ratePer1000.toFixed(2)}</span>
                       <span className="per">per 1000</span>
                     </div>
                     <button className="order-btn">Order</button>

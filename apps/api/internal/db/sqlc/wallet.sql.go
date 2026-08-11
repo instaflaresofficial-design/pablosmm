@@ -130,7 +130,7 @@ SELECT id, user_id, amount FROM wallet_requests
 WHERE status = 'pending'
 AND method = 'UPI'
 AND unique_amount IS NOT NULL
-AND ABS(unique_amount - $1) < 0.005
+AND ABS(unique_amount - $1) < 0.02
 AND created_at > NOW() - INTERVAL '30 minutes'
 ORDER BY created_at DESC
 LIMIT 1

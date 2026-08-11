@@ -1,5 +1,5 @@
 -- name: GetOrdersForSync :many
-SELECT id, provider_order_id, status 
+SELECT id, provider_order_id, status, COALESCE(provider_key, '')::text as provider_key 
 FROM orders 
 WHERE status IN ('pending', 'processing', 'submitted', 'in_progress', 'active', 'canceled', 'failed', 'completed', 'refunded') 
 AND provider_order_id IS NOT NULL 
