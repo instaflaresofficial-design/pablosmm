@@ -53,17 +53,23 @@ function matchesVariantFilter(s: NormalizedSmmService, variant: string): boolean
   if (v === 'random') {
     return s.variant === 'random' || s.variant === 'any' || (!text.includes('custom'));
   }
-  if (v === 'reel') {
-    return text.includes('reel') || text.includes('video') || text.includes('igtv') || (!text.includes('story') && !text.includes('dashboard') && !text.includes('profile') && !text.includes('comment'));
-  }
-  if (v === 'post') {
-    return text.includes('post') || text.includes('photo') || text.includes('reach') || text.includes('impression');
+  const nameCat = `${s.variant ?? ''} ${s.displayName ?? ''} ${s.providerName ?? ''} ${s.category ?? ''}`.toLowerCase();
+  const isDashboardSvc = nameCat.includes('dashboard') || nameCat.includes('profile visit') || nameCat.includes('explore') || text.includes('dashboard view') || text.includes('dashboard views');
+
+  if (v === 'dashboard') {
+    return isDashboardSvc;
   }
   if (v === 'story') {
+    if (isDashboardSvc) return false;
     return text.includes('story') || text.includes('stories');
   }
-  if (v === 'dashboard') {
-    return text.includes('dashboard') || text.includes('profile') || text.includes('explore') || text.includes('visit') || text.includes('statistic');
+  if (v === 'reel') {
+    if (isDashboardSvc) return false;
+    return text.includes('reel') || text.includes('video') || text.includes('igtv') || (!text.includes('story') && !text.includes('comment'));
+  }
+  if (v === 'post') {
+    if (isDashboardSvc) return false;
+    return text.includes('post') || text.includes('photo');
   }
   if (v === 'comments' || v === 'comment') {
     return text.includes('comment');
